@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Users, 
   Search, 
@@ -134,10 +135,12 @@ export default function StaffDashboard() {
               />
             </div>
           </div>
-          
+
+        <Link href="/staff/register">
           <button className="flex items-center gap-2 bg-[#2D2A26] text-white px-6 py-3 font-bold border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#888] hover:bg-[#D97736] hover:shadow-[4px_4px_0px_0px_#3D3834] active:translate-y-0.5 active:shadow-none transition-all">
             <Plus size={20} /> ลงทะเบียนผู้ป่วยใหม่
           </button>
+        </Link>
         </div>
 
         {/* --- DATA TABLE --- */}
