@@ -4,22 +4,19 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Users, 
-  Search, 
-  LogOut, 
-  Activity, 
-  Calendar,
-  FileText,
-  Plus,
-  ArrowUpRight
+  Users, Search, LogOut, Activity, Calendar, 
+  FileText, Plus, ArrowUpRight, User 
 } from 'lucide-react';
 
-// ประกาศ Type ของข้อมูลคนไข้
+// 1. อัปเดต Type ให้ตรงกับหัวตาราง Google Sheets ใหม่
 interface Patient {
   hn: string;
-  name: string;
-  age: string;
+  prefix: string;
+  first_name: string;
+  last_name: string;
+  dob: string;       // วันเกิด (YYYY-MM-DD)
   status: string;
+  phone?: string;    // (ถ้ามี)
   lastVisit?: string;
 }
 
@@ -29,16 +26,13 @@ export default function StaffDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // 1. ตรวจสอบ Login และดึงข้อมูล
   useEffect(() => {
-    const isAuth = localStorage.getItem("isLoggedIn");
-    // ถ้าไม่ได้ Login ให้ดีดกลับไปหน้าแรก ( Uncomment บรรทัดล่างเมื่อใช้งานจริง )
-    // if (!isAuth) router.push("/");
-
+    // เช็ค Login (ถ้าใช้ Middleware แล้ว อาจจะไม่ต้องเช็คตรงนี้ก็ได้ แต่กันเหนียวไว้ครับ)
+    const isAuth = localStorage.getItem("isLoggedIn"); // หรือเช็ค Session
+    
     fetch('/api/db?type=patients')
       .then(res => res.json())
       .then(data => {
-        // ถ้า API ส่งมา error หรือว่าง ให้กันไว้ก่อน
         if (Array.isArray(data)) {
           setPatients(data);
         }
@@ -48,16 +42,44 @@ export default function StaffDashboard() {
         console.error(err);
         setLoading(false);
       });
-  }, [router]);
+  }, []);
 
-  // 2. ฟังก์ชันกรองข้อมูล (Search)
-  const filteredPatients = patients.filter(p => 
-    p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.hn?.includes(searchTerm)
-  );
+  // 2. ฟังก์ชันคำนวณอายุจากวันเกิด
+  const calculateAge = (dob: string) => {
+    if (!dob) return "-";
+    try {
+      const birthDate = new Date(dob);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return isNaN(age) ? "-" : age;
+    } catch (e) {
+      return "-";
+    }
+  };
+
+  // กรองข้อมูล
+  const filteredPatients = patients.filter(p => {
+    const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+    const search = searchTerm.toLowerCase();
+    return fullName.includes(search) || p.hn?.includes(search);
+  });
+
+  // Helper เลือกสีสถานะ
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Active': return 'bg-green-50 text-green-700 border-green-200';
+      case 'Discharge': return 'bg-gray-100 text-gray-600 border-gray-300';
+      case 'COPD': return 'bg-orange-50 text-orange-700 border-orange-200';
+      default: return 'bg-red-50 text-red-700 border-red-200'; // Uncontrolled
+    }
+  };
 
   return (
-    <div className="min-h-screen pb-20 font-sans text-[#2D2A26]">
+    <div className="min-h-screen pb-20 font-sans text-[#2D2A26] bg-[#FEFCF8]">
       
       {/* --- NAVBAR --- */}
       <nav className="border-b-2 border-[#3D3834] bg-white sticky top-0 z-50">
@@ -71,8 +93,10 @@ export default function StaffDashboard() {
           
           <button 
             onClick={() => {
-              localStorage.removeItem("isLoggedIn");
-              router.push("/");
+              // ออกจากระบบ (ลบ Session/Localstorage)
+              localStorage.removeItem("isLoggedIn"); // ถ้าใช้แบบง่าย
+              // หรือ signOut() ของ next-auth
+              router.push("/api/auth/signout");
             }}
             className="flex items-center gap-2 px-4 py-2 text-sm font-bold border-2 border-[#3D3834] hover:bg-red-50 hover:text-red-600 transition-all active:translate-y-0.5"
           >
@@ -83,120 +107,142 @@ export default function StaffDashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-10">
         
-        {/* --- STATS CARDS --- */}
+        {/* --- STATS OVERVIEW --- */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          {/* Card 1: Total Patients */}
-          <div className="bg-white p-6 border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] relative overflow-hidden group hover:-translate-y-1 transition-transform">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Users size={80} />
+          {/* Card 1 */}
+          <div className="bg-white p-6 border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] relative overflow-hidden">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-[#6B6560] font-bold text-xs uppercase tracking-wider">ผู้ป่วยทั้งหมด</p>
+                <h2 className="text-4xl font-black text-[#D97736] mt-1">{patients.length}</h2>
+              </div>
+              <div className="p-3 bg-orange-50 rounded-full border border-orange-100">
+                <Users className="text-[#D97736]" size={24} />
+              </div>
             </div>
-            <p className="text-[#6B6560] font-bold text-sm uppercase tracking-wider mb-1">ผู้ป่วยทั้งหมด</p>
-            <h2 className="text-5xl font-extrabold text-[#D97736]">{patients.length}</h2>
-            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-green-700 bg-green-50 w-fit px-2 py-1 border border-green-200">
-              <ArrowUpRight size={14} /> +2 คนในเดือนนี้
+            <div className="flex items-center gap-2 text-sm font-bold text-green-700 bg-green-50 w-fit px-2 py-1 border border-green-200 rounded">
+              <ArrowUpRight size={14} /> Active Cases: {patients.filter(p => p.status === 'Active').length}
             </div>
           </div>
 
-          {/* Card 2: Risk Cases */}
-          <div className="bg-[#F7F3ED] p-6 border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] relative group hover:-translate-y-1 transition-transform">
-             <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Activity size={80} />
+          {/* Card 2 */}
+          <div className="bg-[#F7F3ED] p-6 border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834]">
+             <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-[#6B6560] font-bold text-xs uppercase tracking-wider">กลุ่ม COPD</p>
+                <h2 className="text-4xl font-black text-[#2D2A26] mt-1">
+                  {patients.filter(p => p.status === 'COPD').length}
+                </h2>
+              </div>
+              <div className="p-3 bg-white rounded-full border border-gray-200">
+                <Activity className="text-[#6B6560]" size={24} />
+              </div>
             </div>
-            <p className="text-[#6B6560] font-bold text-sm uppercase tracking-wider mb-1">กลุ่มเสี่ยงสูง (High Risk)</p>
-            <h2 className="text-5xl font-extrabold text-[#2D2A26]">0</h2>
-            <p className="mt-4 text-sm text-[#6B6560]">ต้องการการดูแลเป็นพิเศษ</p>
+            <p className="text-sm text-[#6B6560]">โรคปอดอุดกั้นเรื้อรัง</p>
           </div>
 
-          {/* Card 3: Today's Visits */}
-          <div className="bg-[#D97736] text-white p-6 border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] relative group hover:-translate-y-1 transition-transform">
-            <div className="absolute top-0 right-0 p-4 opacity-20 text-black">
-              <Calendar size={80} />
+          {/* Card 3 */}
+          <div className="bg-[#2D2A26] text-white p-6 border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834]">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-white/60 font-bold text-xs uppercase tracking-wider">นัดหมายวันนี้</p>
+                <h2 className="text-4xl font-black text-white mt-1">0</h2>
+              </div>
+              <div className="p-3 bg-white/10 rounded-full">
+                <Calendar className="text-white" size={24} />
+              </div>
             </div>
-            <p className="text-white/80 font-bold text-sm uppercase tracking-wider mb-1">นัดหมายวันนี้</p>
-            <h2 className="text-5xl font-extrabold text-white">0</h2>
-            <button className="mt-4 bg-white text-[#D97736] text-xs font-bold px-3 py-1.5 border border-black shadow-[2px_2px_0px_0px_black] hover:translate-y-0.5 active:shadow-none transition-all">
-              ดูตารางนัดหมาย
+            <button className="w-full mt-2 bg-[#D97736] hover:bg-[#c66a2e] text-white text-xs font-bold py-2 border border-white/20 transition-colors">
+              ดูตารางงาน
             </button>
           </div>
         </div>
 
-        {/* --- TOOLBAR & SEARCH --- */}
+        {/* --- TOOLBAR --- */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-6">
           <div className="w-full md:w-1/2 relative">
             <label className="block text-sm font-bold mb-2 ml-1">ค้นหาผู้ป่วย</label>
-            <div className="relative">
-              <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
+            <div className="relative group">
+              <Search className="absolute left-4 top-3.5 text-gray-400 group-focus-within:text-[#D97736] transition-colors" size={20} />
               <input 
                 type="text" 
-                placeholder="ระบุ HN, ชื่อ-นามสกุล..." 
-                className="w-full pl-12 pr-4 py-3 bg-white border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#2D2A26] outline-none focus:border-[#D97736] focus:shadow-[4px_4px_0px_0px_#D97736] transition-all"
+                placeholder="ค้นหาด้วย HN หรือ ชื่อ-นามสกุล..." 
+                className="w-full pl-12 pr-4 py-3 bg-white border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#2D2A26] outline-none focus:border-[#D97736] focus:shadow-[4px_4px_0px_0px_#D97736] transition-all font-medium"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
-
-        <Link href="/staff/register">
-          <button className="flex items-center gap-2 bg-[#2D2A26] text-white px-6 py-3 font-bold border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#888] hover:bg-[#D97736] hover:shadow-[4px_4px_0px_0px_#3D3834] active:translate-y-0.5 active:shadow-none transition-all">
-            <Plus size={20} /> ลงทะเบียนผู้ป่วยใหม่
-          </button>
-        </Link>
+          
+          <Link href="/staff/register">
+            <button className="flex items-center gap-2 bg-[#2D2A26] text-white px-6 py-3 font-bold border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#888] hover:bg-[#D97736] hover:shadow-[4px_4px_0px_0px_#3D3834] active:translate-y-0.5 active:shadow-none transition-all">
+              <Plus size={20} /> ลงทะเบียนผู้ป่วยใหม่
+            </button>
+          </Link>
         </div>
 
-        {/* --- DATA TABLE --- */}
+        {/* --- TABLE --- */}
         <div className="bg-white border-2 border-[#3D3834] shadow-[6px_6px_0px_0px_#3D3834]">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[#F7F3ED] border-b-2 border-[#3D3834] text-sm uppercase tracking-wider text-[#6B6560]">
-                  <th className="p-4 font-extrabold border-r border-[#3D3834]/20">HN</th>
-                  <th className="p-4 font-extrabold border-r border-[#3D3834]/20">ชื่อ-นามสกุล</th>
-                  <th className="p-4 font-extrabold border-r border-[#3D3834]/20">อายุ</th>
-                  <th className="p-4 font-extrabold border-r border-[#3D3834]/20">สถานะ</th>
-                  <th className="p-4 font-extrabold text-center">จัดการ</th>
+                  <th className="p-4 font-extrabold border-r border-[#3D3834]/10 w-24">HN</th>
+                  <th className="p-4 font-extrabold border-r border-[#3D3834]/10">ชื่อ - นามสกุล</th>
+                  <th className="p-4 font-extrabold border-r border-[#3D3834]/10 text-center w-20">อายุ</th>
+                  <th className="p-4 font-extrabold border-r border-[#3D3834]/10 w-32">สถานะ</th>
+                  <th className="p-4 font-extrabold text-center w-32">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3D3834]/10">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="p-10 text-center text-gray-400 animate-pulse">
-                      กำลังโหลดข้อมูล...
+                    <td colSpan={5} className="p-12 text-center text-gray-400">
+                      <div className="animate-pulse flex flex-col items-center gap-2">
+                        <Activity size={32} className="animate-spin text-[#D97736]" />
+                        <span className="font-bold text-sm">กำลังเชื่อมต่อฐานข้อมูล...</span>
+                      </div>
                     </td>
                   </tr>
                 ) : filteredPatients.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-10 text-center text-gray-400">
+                    <td colSpan={5} className="p-12 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
-                        <FileText size={40} className="opacity-20"/>
-                        <span>ไม่พบข้อมูลผู้ป่วย</span>
+                        <User size={48} className="opacity-20"/>
+                        <span className="font-bold">ไม่พบข้อมูลผู้ป่วย</span>
+                        <span className="text-xs">ลองค้นหาด้วยคำอื่น หรือลงทะเบียนใหม่</span>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   filteredPatients.map((patient, index) => (
                     <tr key={index} className="group hover:bg-[#FFF9F0] transition-colors">
-                      <td className="p-4 border-r border-[#3D3834]/10 font-mono font-bold text-[#D97736]">
+                      <td className="p-4 border-r border-[#3D3834]/10 font-mono font-bold text-[#D97736] text-lg">
                         {patient.hn}
                       </td>
-                      <td className="p-4 border-r border-[#3D3834]/10 font-medium">
-                        {patient.name}
+                      <td className="p-4 border-r border-[#3D3834]/10 font-medium text-[#2D2A26]">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-base">
+                            {patient.prefix}{patient.first_name} {patient.last_name}
+                          </span>
+                          {/* ถ้ามีข้อมูลอื่นๆ เช่น เบอร์โทร ก็ใส่ตรงนี้ได้ */}
+                        </div>
                       </td>
-                      <td className="p-4 border-r border-[#3D3834]/10 text-gray-600">
-                        {patient.age || "-"}
+                      <td className="p-4 border-r border-[#3D3834]/10 text-center font-bold text-gray-600">
+                        {calculateAge(patient.dob)}
                       </td>
                       <td className="p-4 border-r border-[#3D3834]/10">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 border border-current text-xs font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,0.05)] ${
-                          patient.status === 'Uncontrolled' 
-                            ? 'bg-red-50 text-red-700 border-red-200' 
-                            : 'bg-green-50 text-green-700 border-green-200'
-                        }`}>
+                        <span className={`inline-flex items-center px-3 py-1 border border-current text-xs font-bold rounded-full shadow-sm ${getStatusColor(patient.status)}`}>
                           {patient.status || "Unknown"}
                         </span>
                       </td>
                       <td className="p-4 text-center">
-                        <button className="text-sm font-bold text-[#2D2A26] underline decoration-2 decoration-[#D97736]/30 hover:decoration-[#D97736] hover:text-[#D97736] transition-all">
-                          ดูประวัติ
-                        </button>
+                        {/* ปุ่มนี้จะลิงก์ไปหน้าประวัติคนไข้รายคน (เดี๋ยวเราทำกันต่อ) */}
+                        <Link href={`/staff/patient/${patient.hn}`}>
+                            <button className="text-sm font-bold text-[#2D2A26] underline decoration-2 decoration-[#D97736]/30 hover:decoration-[#D97736] hover:text-[#D97736] transition-all">
+                            ดูประวัติ
+                            </button>
+                        </Link>
                       </td>
                     </tr>
                   ))
@@ -205,7 +251,6 @@ export default function StaffDashboard() {
             </table>
           </div>
           
-          {/* Footer of Table */}
           <div className="bg-[#F7F3ED] p-3 text-xs text-right text-[#6B6560] font-medium border-t-2 border-[#3D3834]">
             แสดงผล {filteredPatients.length} รายการ
           </div>
