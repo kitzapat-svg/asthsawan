@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link'; // <--- เพิ่มบรรทัดนี้แล้ว
+import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, AlertCircle, FileText 
@@ -26,34 +26,56 @@ interface Patient {
   public_token: string;
 }
 
-// ข้อมูลจำลองสำหรับกราฟ
-const MOCK_VISITS = [
-  { date: '01/01', pefr: 350 },
-  { date: '15/01', pefr: 380 },
-  { date: '01/02', pefr: 400 },
-  { date: '15/02', pefr: 320 },
-  { date: '01/03', pefr: 410 },
-];
+interface Visit {
+  hn: string;
+  date: string;
+  pefr: string;
+  control_level: string;
+}
 
 export default function PatientDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [patient, setPatient] = useState<Patient | null>(null);
+  const [visitHistory, setVisitHistory] = useState<any[]>([]); // เก็บข้อมูลสำหรับกราฟ
   const [loading, setLoading] = useState(true);
 
-  // 1. ดึงข้อมูลคนไข้ตาม HN
+  // 1. ดึงข้อมูลคนไข้ + ประวัติการตรวจ
   useEffect(() => {
-    fetch('/api/db?type=patients')
-      .then(res => res.json())
-      .then((data: Patient[]) => {
-        const found = data.find(p => p.hn === params.hn);
-        if (found) setPatient(found);
+    const fetchData = async () => {
+      try {
+        // 1.1 ดึงข้อมูลคนไข้ (Patients)
+        const resPatients = await fetch('/api/db?type=patients');
+        const dataPatients: Patient[] = await resPatients.json();
+        const foundPatient = dataPatients.find(p => p.hn === params.hn);
+
+        if (foundPatient) {
+          setPatient(foundPatient);
+
+          // 1.2 ดึงข้อมูลประวัติการตรวจ (Visits) เฉพาะถ้าเจอคนไข้
+          const resVisits = await fetch('/api/db?type=visits');
+          const dataVisits: Visit[] = await resVisits.json();
+
+          // กรองเอาเฉพาะ HN นี้ และเรียงวันที่
+          const history = dataVisits
+            .filter(v => v.hn === params.hn)
+            .map(v => ({
+              date: new Date(v.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' }), // แปลงวันที่เป็น DD/MM
+              fullDate: v.date, // เก็บวันที่เต็มไว้ใช้ sort
+              pefr: parseInt(v.pefr) || 0
+            }))
+            .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime()); // เรียงเก่า -> ใหม่
+
+          setVisitHistory(history);
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
         setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+      }
+    };
+
+    fetchData();
   }, [params.hn]);
 
   // --- Logic การคำนวณ ---
@@ -83,11 +105,19 @@ export default function PatientDetailPage() {
     return Math.max(0, Math.round(predicted));
   };
 
-  if (loading) return <div className="p-10 text-center text-gray-400">กำลังโหลดข้อมูล...</div>;
-  if (!patient) return <div className="p-10 text-center text-red-500">ไม่พบข้อมูลผู้ป่วย HN: {params.hn}</div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#FEFCF8]">
+      <Activity className="animate-spin text-[#D97736]" size={48} />
+      <p className="text-[#6B6560] font-bold">กำลังโหลดข้อมูลเวชระเบียน...</p>
+    </div>
+  );
+  
+  if (!patient) return <div className="p-10 text-center text-red-500 font-bold">ไม่พบข้อมูลผู้ป่วย HN: {params.hn}</div>;
 
   const predictedVal = calculatePredictedPEFR(patient);
   const age = getAge(patient.dob);
+  // ถ้าไม่มีข้อมูลกราฟ ให้ใช้ 0 เพื่อกัน error
+  const graphData = visitHistory.length > 0 ? visitHistory : [{ date: 'Start', pefr: 0 }];
 
   return (
     <div className="min-h-screen bg-[#FEFCF8] p-6 pb-20 font-sans text-[#2D2A26]">
@@ -166,12 +196,14 @@ export default function PatientDetailPage() {
             <div className="bg-white p-6 border-2 border-[#3D3834] shadow-[6px_6px_0px_0px_#3D3834]">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-lg flex items-center gap-2"><Activity size={20} className="text-[#D97736]"/> แนวโน้มค่า PEFR</h3>
-                    <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded">ข้อมูลจำลอง</span>
+                    <div className="text-xs font-bold bg-gray-100 px-2 py-1 rounded border flex gap-2">
+                        <span>จำนวนครั้งที่ตรวจ: {visitHistory.length}</span>
+                    </div>
                 </div>
                 
                 <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={MOCK_VISITS}>
+                        <LineChart data={graphData}>
                             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                             <XAxis dataKey="date" tick={{fontSize: 12}} />
                             <YAxis domain={[0, 800]} tick={{fontSize: 12}} />
@@ -203,7 +235,6 @@ export default function PatientDetailPage() {
                 </div>
             </div>
 
-            {/* ปุ่มกดที่แก้ไขแล้ว */}
             <div className="grid grid-cols-2 gap-4">
                 <Link href={`/staff/visit/${patient.hn}`}>
                     <button className="w-full py-4 border-2 border-[#3D3834] font-bold hover:bg-[#F7F3ED] transition-colors flex items-center justify-center gap-2">
