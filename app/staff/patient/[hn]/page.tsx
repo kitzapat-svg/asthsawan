@@ -176,7 +176,6 @@ export default function PatientDetailPage() {
                             <YAxis domain={[0, 800]} tick={{fontSize: 12}} />
                             <Tooltip contentStyle={{ borderRadius: '0px', border: '2px solid #3D3834', boxShadow: '4px 4px 0px 0px #3D3834' }}/>
                             
-                            {/* แก้ไขตรงนี้: ใช้ <Label> ซ้อนใน <ReferenceLine> แทนการใช้ Props */}
                             <ReferenceLine y={predictedVal * 0.8} stroke="#22c55e" strokeDasharray="3 3">
                                 <Label value="Green Zone" fill="#22c55e" fontSize={10} position="insideTopRight" />
                             </ReferenceLine>
@@ -188,6 +187,19 @@ export default function PatientDetailPage() {
                             <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
                         </LineChart>
                     </ResponsiveContainer>
+                </div>
+                
+                {/* แก้ไขเครื่องหมาย > และ < ให้ถูกต้องแล้ว */}
+                <div className="mt-4 flex gap-4 text-xs font-bold justify-center">
+                    <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div> &gt; 80% (ปลอดภัย)
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div> 60-80% (ระวัง)
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div> &lt; 60% (อันตราย)
+                    </div>
                 </div>
             </div>
 
