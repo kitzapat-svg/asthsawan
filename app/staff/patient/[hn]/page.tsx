@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, ReferenceLine 
+  Tooltip, ResponsiveContainer, ReferenceLine, Label 
 } from 'recharts';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -25,12 +25,12 @@ interface Patient {
   public_token: string;
 }
 
-// ข้อมูลจำลองสำหรับกราฟ (เดี๋ยวเราค่อยเชื่อม DB จริงทีหลัง)
+// ข้อมูลจำลองสำหรับกราฟ
 const MOCK_VISITS = [
   { date: '01/01', pefr: 350 },
   { date: '15/01', pefr: 380 },
   { date: '01/02', pefr: 400 },
-  { date: '15/02', pefr: 320 }, // อาการแย่ลง
+  { date: '15/02', pefr: 320 },
   { date: '01/03', pefr: 410 },
 ];
 
@@ -45,7 +45,6 @@ export default function PatientDetailPage() {
     fetch('/api/db?type=patients')
       .then(res => res.json())
       .then((data: Patient[]) => {
-        // หาคนไข้ที่ HN ตรงกับ URL
         const found = data.find(p => p.hn === params.hn);
         if (found) setPatient(found);
         setLoading(false);
@@ -56,9 +55,7 @@ export default function PatientDetailPage() {
       });
   }, [params.hn]);
 
-  // --- Logic การคำนวณ (จาก Python) ---
-  
-  // 1. คำนวณอายุ
+  // --- Logic การคำนวณ ---
   const getAge = (dob: string) => {
     if (!dob) return 0;
     const birthDate = new Date(dob);
@@ -71,14 +68,12 @@ export default function PatientDetailPage() {
     return age;
   };
 
-  // 2. คำนวณ Predicted PEFR (สูตรมาตรฐานไทย)
   const calculatePredictedPEFR = (p: Patient) => {
     const age = getAge(p.dob);
     const height = parseFloat(p.height || "0");
     if (height === 0) return 0;
 
     let predicted = 0;
-    // เช็คเพศจากคำนำหน้า
     if (["นาย", "ด.ช."].includes(p.prefix)) {
       predicted = (5.48 * height) - (1.51 * age) - 279.7;
     } else {
@@ -119,8 +114,6 @@ export default function PatientDetailPage() {
         
         {/* Left Column: Personal Info & QR */}
         <div className="space-y-6">
-          
-          {/* 1. Personal Info Card */}
           <div className="bg-white p-6 border-2 border-[#3D3834] shadow-[6px_6px_0px_0px_#3D3834]">
             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100">
                 <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834]">
@@ -131,47 +124,25 @@ export default function PatientDetailPage() {
                     <p className="text-[#6B6560] font-medium">{patient.last_name}</p>
                 </div>
             </div>
-            
             <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <p className="text-[#6B6560] flex items-center gap-1"><FileText size={14}/> HN</p>
-                    <p className="font-bold font-mono text-lg">{patient.hn}</p>
-                </div>
-                <div>
-                    <p className="text-[#6B6560] flex items-center gap-1"><Calendar size={14}/> อายุ</p>
-                    <p className="font-bold text-lg">{age} ปี</p>
-                </div>
-                <div>
-                    <p className="text-[#6B6560] flex items-center gap-1"><Ruler size={14}/> ส่วนสูง</p>
-                    <p className="font-bold text-lg">{patient.height || "-"} cm</p>
-                </div>
-                <div>
-                    <p className="text-[#6B6560] flex items-center gap-1"><Activity size={14}/> Best PEFR</p>
-                    <p className="font-bold text-lg">{patient.best_pefr || "-"} L/min</p>
-                </div>
+                <div><p className="text-[#6B6560] flex items-center gap-1"><FileText size={14}/> HN</p><p className="font-bold font-mono text-lg">{patient.hn}</p></div>
+                <div><p className="text-[#6B6560] flex items-center gap-1"><Calendar size={14}/> อายุ</p><p className="font-bold text-lg">{age} ปี</p></div>
+                <div><p className="text-[#6B6560] flex items-center gap-1"><Ruler size={14}/> ส่วนสูง</p><p className="font-bold text-lg">{patient.height || "-"} cm</p></div>
+                <div><p className="text-[#6B6560] flex items-center gap-1"><Activity size={14}/> Best PEFR</p><p className="font-bold text-lg">{patient.best_pefr || "-"} L/min</p></div>
             </div>
           </div>
 
-          {/* 2. QR Code Card */}
           <div className="bg-[#2D2A26] p-6 text-white border-2 border-[#3D3834] shadow-[6px_6px_0px_0px_#888] text-center">
              <div className="bg-white p-4 w-fit mx-auto mb-4 border-4 border-[#D97736]">
-                <QRCodeSVG 
-                    value={`https://asthsawan.vercel.app/patient/${patient.public_token}`} 
-                    size={150} 
-                />
+                <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient.public_token}`} size={150} />
              </div>
-             <h3 className="font-bold text-lg flex items-center justify-center gap-2">
-                <QrCode size={20}/> Patient QR Code
-             </h3>
+             <h3 className="font-bold text-lg flex items-center justify-center gap-2"><QrCode size={20}/> Patient QR Code</h3>
              <p className="text-white/60 text-sm mt-1">ให้ผู้ป่วยสแกนเพื่อดูผลการรักษา</p>
           </div>
-
         </div>
 
-        {/* Right Column: Clinical Data & Chart */}
+        {/* Right Column: Chart */}
         <div className="lg:col-span-2 space-y-6">
-            
-            {/* 3. Predicted Values */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="bg-[#F7F3ED] p-5 border-2 border-[#3D3834]">
                     <p className="text-[#6B6560] text-xs font-bold uppercase">ค่ามาตรฐาน (Predicted)</p>
@@ -181,7 +152,6 @@ export default function PatientDetailPage() {
                     </div>
                     <p className="text-xs text-[#6B6560] mt-2">*คำนวณจากเพศ ส่วนสูง และอายุ</p>
                  </div>
-
                  <div className="bg-white p-5 border-2 border-[#3D3834]">
                     <p className="text-[#6B6560] text-xs font-bold uppercase">เป้าหมาย (80% ของค่ามาตรฐาน)</p>
                      <div className="flex items-end gap-2 mt-1">
@@ -192,12 +162,9 @@ export default function PatientDetailPage() {
                  </div>
             </div>
 
-            {/* 4. Trend Chart */}
             <div className="bg-white p-6 border-2 border-[#3D3834] shadow-[6px_6px_0px_0px_#3D3834]">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Activity size={20} className="text-[#D97736]"/> แนวโน้มค่า PEFR
-                    </h3>
+                    <h3 className="font-bold text-lg flex items-center gap-2"><Activity size={20} className="text-[#D97736]"/> แนวโน้มค่า PEFR</h3>
                     <span className="text-xs font-bold bg-gray-100 px-2 py-1 rounded">ข้อมูลจำลอง</span>
                 </div>
                 
@@ -207,41 +174,27 @@ export default function PatientDetailPage() {
                             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                             <XAxis dataKey="date" tick={{fontSize: 12}} />
                             <YAxis domain={[0, 800]} tick={{fontSize: 12}} />
-                            <Tooltip 
-                                contentStyle={{ borderRadius: '0px', border: '2px solid #3D3834', boxShadow: '4px 4px 0px 0px #3D3834' }}
-                            />
-                            {/* เส้นแบ่งโซนสี */}
-                            <ReferenceLine y={predictedVal * 0.8} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Green Zone', fill: '#22c55e', fontSize: 10 }} />
-                            <ReferenceLine y={predictedVal * 0.6} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Red Zone', fill: '#ef4444', fontSize: 10 }} />
+                            <Tooltip contentStyle={{ borderRadius: '0px', border: '2px solid #3D3834', boxShadow: '4px 4px 0px 0px #3D3834' }}/>
                             
-                            <Line 
-                                type="monotone" 
-                                dataKey="pefr" 
-                                stroke="#D97736" 
-                                strokeWidth={3}
-                                dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }}
-                                activeDot={{ r: 6 }} 
-                            />
+                            {/* แก้ไขตรงนี้: ใช้ <Label> ซ้อนใน <ReferenceLine> แทนการใช้ Props */}
+                            <ReferenceLine y={predictedVal * 0.8} stroke="#22c55e" strokeDasharray="3 3">
+                                <Label value="Green Zone" fill="#22c55e" fontSize={10} position="insideTopRight" />
+                            </ReferenceLine>
+                            
+                            <ReferenceLine y={predictedVal * 0.6} stroke="#ef4444" strokeDasharray="3 3">
+                                <Label value="Red Zone" fill="#ef4444" fontSize={10} position="insideTopRight" />
+                            </ReferenceLine>
+                            
+                            <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="mt-4 flex gap-4 text-xs font-bold justify-center">
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 bg-green-500 rounded-full"></div> > 80% (ปลอดภัย)</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 bg-yellow-500 rounded-full"></div> 60-80% (ระวัง)</div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 bg-red-500 rounded-full"></div> &lt; 60% (อันตราย)</div>
-                </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-4">
-                <button className="py-4 border-2 border-[#3D3834] font-bold hover:bg-[#F7F3ED] transition-colors flex items-center justify-center gap-2">
-                    <FileText size={20}/> บันทึกการตรวจ (Visit)
-                </button>
-                <button className="py-4 bg-[#D97736] text-white border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] font-bold hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2">
-                    <Activity size={20}/> พ่นยาฉุกเฉิน
-                </button>
+                <button className="py-4 border-2 border-[#3D3834] font-bold hover:bg-[#F7F3ED] transition-colors flex items-center justify-center gap-2"><FileText size={20}/> บันทึกการตรวจ (Visit)</button>
+                <button className="py-4 bg-[#D97736] text-white border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] font-bold hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2"><Activity size={20}/> พ่นยาฉุกเฉิน</button>
             </div>
-
         </div>
       </div>
     </div>
