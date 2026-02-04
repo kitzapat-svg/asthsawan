@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Activity, Calendar, User, FileText, CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { Activity, Calendar, FileText, CheckCircle, AlertTriangle, XCircle, Clock, Pill, Printer } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, ReferenceLine, Label 
+  Tooltip, ResponsiveContainer 
 } from 'recharts';
+import { QRCodeSVG } from 'qrcode.react';
 
 // --- Types ---
 interface Patient {
@@ -26,6 +27,8 @@ interface Visit {
   control_level: string;
   next_appt: string;
   advice: string;
+  controller: string;
+  reliever: string;
 }
 
 export default function PatientPublicPage() {
@@ -38,7 +41,6 @@ export default function PatientPublicPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. หาคนไข้จาก Token (Column I)
         const resPatients = await fetch('/api/db?type=patients');
         const dataPatients: Patient[] = await resPatients.json();
         const foundPatient = dataPatients.find(p => p.public_token === params.token);
@@ -46,23 +48,25 @@ export default function PatientPublicPage() {
         if (foundPatient) {
           setPatient(foundPatient);
 
-          // 2. ดึงประวัติการรักษาของคนไข้คนนี้
           const resVisits = await fetch('/api/db?type=visits');
           const dataVisits: Visit[] = await resVisits.json();
 
-          // กรองเฉพาะ HN ของคนไข้คนนี้ และเรียงวันที่ล่าสุดขึ้นก่อน
           const myVisits = dataVisits
             .filter(v => v.hn === foundPatient.hn)
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
           if (myVisits.length > 0) {
-            setLastVisit(myVisits[0]); // Visit ล่าสุด
+            setLastVisit(myVisits[0]);
             
-            // ข้อมูลสำหรับกราฟ (เรียงเก่าไปใหม่)
             const graphData = [...myVisits]
               .reverse()
               .map(v => ({
-                date: new Date(v.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' }),
+                // 1. ปรับแก้ Format วันที่ให้มีปีด้วย (DD/MM/YY)
+                date: new Date(v.date).toLocaleDateString('th-TH', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: '2-digit' 
+                }),
                 pefr: parseInt(v.pefr) || 0
               }));
             setVisitHistory(graphData);
@@ -78,7 +82,11 @@ export default function PatientPublicPage() {
     fetchData();
   }, [params.token]);
 
-  // Helper: สีสถานะ
+  // --- Helpers ---
+  const handlePrint = () => {
+    window.print();
+  };
+
   const getStatusColor = (level: string) => {
     if (level === 'Well-controlled') return 'bg-green-500 text-white';
     if (level === 'Partly Controlled') return 'bg-yellow-500 text-white';
@@ -95,6 +103,55 @@ export default function PatientPublicPage() {
     if (level === 'Well-controlled') return 'คุมอาการได้ดี (Well)';
     if (level === 'Partly Controlled') return 'คุมได้บางส่วน (Partly)';
     return 'ยังคุมไม่ได้ (Uncontrolled)';
+  };
+
+  // --- Logic Action Plan ---
+  const renderActionPlan = (visit: Visit) => {
+    const controller = visit.controller || "ยาควบคุม";
+    const reliever = visit.reliever || "ยาฉุกเฉิน";
+
+    if (visit.control_level === 'Well-controlled') {
+      return (
+        <div className="bg-green-50 border-l-8 border-green-500 rounded-lg p-5 mt-6 shadow-sm">
+          <h3 className="text-green-800 font-black text-lg flex items-center gap-2">
+            <CheckCircle /> โซนสีเขียว: สบายดี
+          </h3>
+          <ul className="mt-3 space-y-2 text-green-900 text-sm font-medium list-disc pl-5">
+            <li>คุณไม่มีอาการหอบเหนื่อย สามารถทำกิจกรรมได้ปกติ</li>
+            <li><strong>การใช้ยา:</strong> ใช้ยา <span className="font-bold underline">{controller}</span> วันละ 2 ครั้ง เช้า-เย็น อย่างต่อเนื่อง (ห้ามหยุดยาเอง)</li>
+            <li>ใช้ยา <span className="font-bold underline">{reliever}</span> เฉพาะเวลามีอาการ หรือก่อนออกกำลังกาย</li>
+          </ul>
+        </div>
+      );
+    } else if (visit.control_level === 'Partly Controlled') {
+      return (
+        <div className="bg-yellow-50 border-l-8 border-yellow-500 rounded-lg p-5 mt-6 shadow-sm">
+          <h3 className="text-yellow-800 font-black text-lg flex items-center gap-2">
+            <AlertTriangle /> โซนสีเหลือง: เริ่มมีอาการ
+          </h3>
+          <ul className="mt-3 space-y-2 text-yellow-900 text-sm font-medium list-disc pl-5">
+            <li>มีอาการไอ เหนื่อย หรือตื่นมาไอตอนกลางคืน</li>
+            <li><strong>การใช้ยา:</strong> ใช้ยา <span className="font-bold underline">{controller}</span> ต่อเนื่องตามปกติ</li>
+            <li>เพิ่มการใช้ยา <span className="font-bold underline">{reliever}</span> 2 พัฟ ทุก 4-6 ชั่วโมง</li>
+            <li>ถ้าอาการไม่ดีขึ้นใน 24 ชั่วโมง ให้รีบมาพบแพทย์</li>
+          </ul>
+        </div>
+      );
+    } else {
+      return (
+        <div className="bg-red-50 border-l-8 border-red-500 rounded-lg p-5 mt-6 shadow-sm animate-pulse">
+          <h3 className="text-red-800 font-black text-lg flex items-center gap-2">
+            <XCircle /> โซนสีแดง: อันตราย!
+          </h3>
+          <ul className="mt-3 space-y-2 text-red-900 text-sm font-medium list-disc pl-5">
+             <li>หอบเหนื่อยมาก พูดได้ทีละคำ หายใจมีเสียงหวีด</li>
+             <li><strong>การปฏิบัติตัวด่วน:</strong> พ่นยา <span className="font-bold underline">{reliever}</span> 2-4 พัฟ ทันที!</li>
+             <li>ถ้าไม่ดีขึ้น ให้พ่นซ้ำได้ทุก 15 นาที (ไม่เกิน 3 ครั้ง)</li>
+             <li><strong>รีบไปโรงพยาบาลที่ใกล้ที่สุดทันที</strong> หรือโทร 1669</li>
+          </ul>
+        </div>
+      );
+    }
   };
 
   if (loading) return (
@@ -115,100 +172,184 @@ export default function PatientPublicPage() {
   return (
     <div className="min-h-screen bg-[#F2F2F2] pb-10 font-sans text-[#2D2A26]">
       
-      {/* Header Mobile Style */}
-      <div className="bg-[#2D2A26] text-white p-6 rounded-b-[30px] shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Activity size={120} />
-        </div>
-        <div className="relative z-10">
-            <p className="text-white/60 text-sm font-bold mb-1">สวัสดีคุณ</p>
-            <h1 className="text-3xl font-black">{patient.first_name} {patient.last_name}</h1>
-            <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
-                <FileText size={14} /> HN: {patient.hn}
+      {/* ========================================
+        ส่วนที่ 1: หน้าจอปกติ (Screen View)
+        จะซ่อนเมื่อสั่งพิมพ์ (print:hidden)
+        ========================================
+      */}
+      <div className="print:hidden">
+        
+        {/* Header Mobile */}
+        <div className="bg-[#2D2A26] text-white p-6 rounded-b-[30px] shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10"><Activity size={120} /></div>
+            <div className="relative z-10">
+                <p className="text-white/60 text-sm font-bold mb-1">สวัสดีคุณ</p>
+                <h1 className="text-3xl font-black">{patient.first_name} {patient.last_name}</h1>
+                <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
+                    <FileText size={14} /> HN: {patient.hn}
+                </div>
             </div>
         </div>
-      </div>
 
-      <div className="px-5 -mt-8 relative z-20 space-y-6">
-        
-        {/* 1. Status Card (ใบรายงานผลล่าสุด) */}
-        <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
-            <h2 className="text-[#6B6560] font-bold text-xs uppercase mb-4 tracking-wider">ผลการประเมินล่าสุด</h2>
+        <div className="px-5 -mt-8 relative z-20 space-y-6">
             
-            {lastVisit ? (
-                <div className="text-center">
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg ${getStatusColor(lastVisit.control_level)}`}>
-                        {getStatusIcon(lastVisit.control_level)}
+            {/* 1. Status Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+                <h2 className="text-[#6B6560] font-bold text-xs uppercase mb-4 tracking-wider">ผลการประเมินล่าสุด</h2>
+                {lastVisit ? (
+                    <div className="text-center">
+                        <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg ${getStatusColor(lastVisit.control_level)}`}>
+                            {getStatusIcon(lastVisit.control_level)}
+                        </div>
+                        <h3 className="text-xl font-black text-[#2D2A26] mb-1">{getStatusText(lastVisit.control_level)}</h3>
+                        <p className="text-[#6B6560] text-sm">อัปเดต: {new Date(lastVisit.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit'})}</p>
                     </div>
-                    <h3 className="text-xl font-black text-[#2D2A26] mb-1">
-                        {getStatusText(lastVisit.control_level)}
-                    </h3>
-                    <p className="text-[#6B6560] text-sm">อัปเดตเมื่อ: {new Date(lastVisit.date).toLocaleDateString('th-TH')}</p>
-                </div>
-            ) : (
-                <div className="text-center py-4 text-gray-400">
-                    ยังไม่มีประวัติการตรวจ
+                ) : (
+                    <div className="text-center py-4 text-gray-400">ยังไม่มีประวัติการตรวจ</div>
+                )}
+            </div>
+
+            {/* 2. Action Plan */}
+            {lastVisit && (
+                <div>
+                    <div className="flex items-center gap-2 mb-2 mt-4 opacity-60">
+                        <div className="h-[1px] bg-black flex-1"></div>
+                        <span className="text-xs font-bold uppercase tracking-wider">Asthma Action Plan</span>
+                        <div className="h-[1px] bg-black flex-1"></div>
+                    </div>
+                    {renderActionPlan(lastVisit)}
                 </div>
             )}
+
+            {/* 3. Next Appointment */}
+            {lastVisit?.next_appt && (
+                <div className="bg-[#D97736] text-white rounded-2xl p-6 shadow-lg flex items-center justify-between">
+                    <div>
+                        <p className="text-white/80 text-xs font-bold uppercase mb-1">นัดหมายครั้งต่อไป</p>
+                        <h3 className="text-2xl font-black">{new Date(lastVisit.next_appt).toLocaleDateString('th-TH', { dateStyle: 'long' })}</h3>
+                    </div>
+                    <div className="bg-white/20 p-3 rounded-full"><Calendar size={24} /></div>
+                </div>
+            )}
+
+            {/* 4. Medications */}
+            {lastVisit && (
+                <div className="bg-white rounded-2xl p-6 shadow-md">
+                    <h3 className="font-bold flex items-center gap-2 mb-4 text-[#2D2A26]"><Pill size={18} /> รายการยาปัจจุบัน</h3>
+                    <div className="space-y-3 text-sm">
+                        <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                            <span className="text-gray-600">ยาควบคุม</span>
+                            <span className="font-bold text-blue-900">{lastVisit.controller || "-"}</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                            <span className="text-gray-600">ยาฉุกเฉิน</span>
+                            <span className="font-bold text-orange-900">{lastVisit.reliever || "-"}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 5. Mini Chart (with Year) */}
+            {visitHistory.length > 0 && (
+                <div className="bg-white rounded-2xl p-6 shadow-md">
+                    <h3 className="font-bold flex items-center gap-2 mb-4 text-[#D97736]"><Activity size={18} /> แนวโน้มค่าปอด (PEFR)</h3>
+                    <div className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={visitHistory}>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                                <XAxis dataKey="date" tick={{fontSize: 10}} />
+                                <YAxis domain={[0, 800]} tick={{fontSize: 10}} width={30} />
+                                <Tooltip contentStyle={{ borderRadius: '10px', fontSize: '12px' }}/>
+                                <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 3, fill: '#D97736', stroke: '#fff', strokeWidth: 1 }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* Print Button */}
+            <button 
+                onClick={handlePrint}
+                className="w-full bg-[#2D2A26] text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform mb-8"
+            >
+                <Printer size={20} /> พิมพ์บัตรประจำตัว Asthma ID
+            </button>
+
         </div>
 
-        {/* 2. Next Appointment (วันนัด) */}
-        {lastVisit?.next_appt && (
-            <div className="bg-[#D97736] text-white rounded-2xl p-6 shadow-lg flex items-center justify-between">
-                <div>
-                    <p className="text-white/80 text-xs font-bold uppercase mb-1">นัดหมายครั้งต่อไป</p>
-                    <h3 className="text-2xl font-black">
-                        {new Date(lastVisit.next_appt).toLocaleDateString('th-TH', { dateStyle: 'long' })}
-                    </h3>
-                </div>
-                <div className="bg-white/20 p-3 rounded-full">
-                    <Calendar size={24} />
-                </div>
-            </div>
-        )}
-
-        {/* 3. Doctor's Advice (คำแนะนำ) */}
-        {lastVisit?.advice && lastVisit.advice !== '-' && (
-             <div className="bg-white rounded-2xl p-6 shadow-md border-l-8 border-[#2D2A26]">
-                <h3 className="font-bold flex items-center gap-2 mb-2 text-[#2D2A26]">
-                    <Clock size={18} /> คำแนะนำจากแพทย์/เภสัช
-                </h3>
-                <p className="text-gray-600 leading-relaxed bg-[#F7F3ED] p-3 rounded-lg">
-                    "{lastVisit.advice}"
-                </p>
-            </div>
-        )}
-
-        {/* 4. Mini Chart */}
-        {visitHistory.length > 0 && (
-             <div className="bg-white rounded-2xl p-6 shadow-md">
-                <h3 className="font-bold flex items-center gap-2 mb-4 text-[#D97736]">
-                    <Activity size={18} /> แนวโน้มค่าปอด (PEFR)
-                </h3>
-                <div className="h-[200px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={visitHistory}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                            <XAxis dataKey="date" tick={{fontSize: 10}} />
-                            <YAxis domain={[0, 800]} tick={{fontSize: 10}} width={30} />
-                            <Tooltip contentStyle={{ borderRadius: '10px', fontSize: '12px' }}/>
-                            <Line 
-                                type="monotone" 
-                                dataKey="pefr" 
-                                stroke="#D97736" 
-                                strokeWidth={3} 
-                                dot={{ r: 3, fill: '#D97736', stroke: '#fff', strokeWidth: 1 }} 
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-        )}
-
+        <div className="text-center mt-4 pb-8 text-gray-400 text-xs">
+            <p>© Sawankhalok Hospital Asthma Clinic</p>
+        </div>
       </div>
 
-      <div className="text-center mt-10 text-gray-400 text-xs">
-         <p>© Sawankhalok Hospital Asthma Clinic</p>
+      {/* ========================================
+        ส่วนที่ 2: หน้าตาบัตร (ID Card View)
+        จะแสดงเฉพาะตอนสั่งพิมพ์ (hidden print:flex)
+        ========================================
+      */}
+      <div className="hidden print:flex print:items-center print:justify-center print:min-h-screen bg-white">
+          
+          {/* กรอบบัตร (ขนาดมาตรฐานบัตรเครดิต CR80: 85.6mm x 54mm) */}
+          <div className="w-[85.6mm] h-[54mm] border border-gray-300 rounded-lg overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col">
+              
+              {/* แถบหัวบัตร */}
+              <div className="bg-[#D97736] text-white p-2 flex items-center justify-between h-[12mm]">
+                  <div className="flex items-center gap-2">
+                      <div className="bg-white p-1 rounded-full text-[#D97736]">
+                          <Activity size={12} />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider">Asthma Alert Card</span>
+                  </div>
+                  <span className="text-[8px] font-bold opacity-80">โรงพยาบาลสวรรคโลก</span>
+              </div>
+
+              {/* เนื้อหาบัตร */}
+              <div className="flex-1 p-3 flex gap-3 items-center">
+                  
+                  {/* ซ้าย: QR Code */}
+                  <div className="w-[28mm] flex flex-col items-center justify-center">
+                      <div className="border-2 border-[#2D2A26] p-1 bg-white">
+                          <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient?.public_token}`} size={80} />
+                      </div>
+                      <span className="text-[6px] font-bold text-center mt-1 text-gray-600">
+                          สแกนเพื่อดูแผนฉุกเฉิน
+                      </span>
+                  </div>
+
+                  {/* ขวา: ข้อมูล */}
+                  <div className="flex-1 space-y-1">
+                      <div>
+                          <p className="text-[7px] text-gray-500 uppercase font-bold">Name</p>
+                          <p className="text-[12px] font-black text-[#2D2A26] leading-none truncate">
+                              {patient?.prefix}{patient?.first_name} {patient?.last_name}
+                          </p>
+                      </div>
+                      <div className="flex gap-4">
+                          <div>
+                            <p className="text-[7px] text-gray-500 uppercase font-bold">HN</p>
+                            <p className="text-[10px] font-bold font-mono text-[#D97736]">{patient?.hn}</p>
+                          </div>
+                          <div>
+                            <p className="text-[7px] text-gray-500 uppercase font-bold">DOB</p>
+                            <p className="text-[10px] font-bold">{new Date(patient?.dob || '').toLocaleDateString('th-TH')}</p>
+                          </div>
+                      </div>
+                      <div className="pt-1">
+                         <div className="bg-red-50 border border-red-100 p-1 rounded">
+                             <p className="text-[6px] text-red-600 font-bold flex items-center gap-1">
+                                <AlertTriangle size={6} /> ในกรณีฉุกเฉิน (Emergency)
+                             </p>
+                             <p className="text-[8px] font-bold text-red-700">
+                                โทร 1669 หรือ นำส่งโรงพยาบาลทันที
+                             </p>
+                         </div>
+                      </div>
+                  </div>
+              </div>
+
+              {/* แถบท้ายบัตร */}
+              <div className="bg-[#2D2A26] h-[3mm] w-full mt-auto"></div>
+          </div>
       </div>
 
     </div>
