@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link'; // <--- เพิ่มบรรทัดนี้แล้ว
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, AlertCircle, FileText 
@@ -11,7 +12,6 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine, Label 
 } from 'recharts';
 import { QRCodeSVG } from 'qrcode.react';
-import Link from 'next/link';
 
 // --- Types ---
 interface Patient {
@@ -190,7 +190,6 @@ export default function PatientDetailPage() {
                     </ResponsiveContainer>
                 </div>
                 
-                {/* แก้ไขเครื่องหมาย > และ < ให้ถูกต้องแล้ว */}
                 <div className="mt-4 flex gap-4 text-xs font-bold justify-center">
                     <div className="flex items-center gap-1">
                         <div className="w-3 h-3 bg-green-500 rounded-full"></div> &gt; 80% (ปลอดภัย)
@@ -204,11 +203,17 @@ export default function PatientDetailPage() {
                 </div>
             </div>
 
-          <Link href={`/staff/visit/${patient.hn}`}>
+            {/* ปุ่มกดที่แก้ไขแล้ว */}
             <div className="grid grid-cols-2 gap-4">
-                <button className="py-4 border-2 border-[#3D3834] font-bold hover:bg-[#F7F3ED] transition-colors flex items-center justify-center gap-2"><FileText size={20}/> บันทึกการตรวจ (Visit)</button>
-          </Link>
-                <button className="py-4 bg-[#D97736] text-white border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] font-bold hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2"><Activity size={20}/> พ่นยาฉุกเฉิน</button>
+                <Link href={`/staff/visit/${patient.hn}`}>
+                    <button className="w-full py-4 border-2 border-[#3D3834] font-bold hover:bg-[#F7F3ED] transition-colors flex items-center justify-center gap-2">
+                        <FileText size={20}/> บันทึกการตรวจ (Visit)
+                    </button>
+                </Link>
+
+                <button className="py-4 bg-[#D97736] text-white border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] font-bold hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2">
+                    <Activity size={20}/> พ่นยาฉุกเฉิน
+                </button>
             </div>
         </div>
       </div>
