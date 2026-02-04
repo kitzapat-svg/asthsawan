@@ -11,6 +11,7 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine, Label 
 } from 'recharts';
 import { QRCodeSVG } from 'qrcode.react';
+import Link from 'next/link';
 
 // --- Types ---
 interface Patient {
@@ -203,8 +204,10 @@ export default function PatientDetailPage() {
                 </div>
             </div>
 
+          <Link href={`/staff/visit/${patient.hn}`}>
             <div className="grid grid-cols-2 gap-4">
                 <button className="py-4 border-2 border-[#3D3834] font-bold hover:bg-[#F7F3ED] transition-colors flex items-center justify-center gap-2"><FileText size={20}/> บันทึกการตรวจ (Visit)</button>
+          </Link>
                 <button className="py-4 bg-[#D97736] text-white border-2 border-[#3D3834] shadow-[4px_4px_0px_0px_#3D3834] font-bold hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2"><Activity size={20}/> พ่นยาฉุกเฉิน</button>
             </div>
         </div>
