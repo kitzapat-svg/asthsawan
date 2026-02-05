@@ -23,5 +23,15 @@ const handler = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
 })
+// --- ส่วนที่เพิ่มเข้ามา (Timeout) ---
+  session: {
+    strategy: "jwt",
+    maxAge: 8 * 60 * 60, // 8 ชั่วโมง (หน่วยเป็นวินาที)
+  },
+  jwt: {
+    maxAge: 8 * 60 * 60, // ต้องตั้งให้เท่ากับ session
+  },
+  // --------------------------------
+});
 
 export { handler as GET, handler as POST }
