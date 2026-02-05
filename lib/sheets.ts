@@ -57,3 +57,41 @@ export async function appendData(tabName: string, values: any[]) {
     return { success: false, error };
   }
 }
+
+// ... (โค้ดเดิมด้านบน)
+
+// ฟังก์ชัน: อัปเดตสถานะผู้ป่วย
+export async function updatePatientStatus(tabName: string, hn: string, newStatus: string) {
+  try {
+    // 1. ดึงคอลัมน์ A (HN) ทั้งหมดมาเพื่อหาว่าคนไข้อยู่แถวไหน
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tabName}!A:A`, 
+    });
+    
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return { success: false, error: "No data found" };
+
+    // 2. หา Index ของแถวที่ HN ตรงกัน (บวก 1 เพราะ Array เริ่มที่ 0 แต่ Sheet เริ่มแถวที่ 1)
+    const rowIndex = rows.findIndex((row) => row[0] === hn) + 1;
+
+    if (rowIndex === 0) return { success: false, error: "HN not found" };
+
+    // 3. สั่งอัปเดตเฉพาะ Cell ที่เป็น Status (สมมติว่า Status อยู่ Column H ตามโค้ด Register เดิม)
+    // Column H คือ Column ที่ 8
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${tabName}!H${rowIndex}`, // แก้เฉพาะช่อง H ของแถวนั้น
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[newStatus]]
+      }
+    });
+
+    return { success: true };
+
+  } catch (error) {
+    console.error("Update Error:", error);
+    return { success: false, error };
+  }
+}
