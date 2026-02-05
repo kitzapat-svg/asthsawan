@@ -8,6 +8,7 @@ import {
   Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { QRCodeSVG } from 'qrcode.react';
+import { ThemeToggle } from '@/components/theme-toggle'; // <--- เรียกใช้ปุ่มปรับธีม
 
 // --- Types ---
 interface Patient {
@@ -61,7 +62,6 @@ export default function PatientPublicPage() {
             const graphData = [...myVisits]
               .reverse()
               .map(v => ({
-                // 1. ปรับแก้ Format วันที่ให้มีปีด้วย (DD/MM/YY)
                 date: new Date(v.date).toLocaleDateString('th-TH', { 
                     day: '2-digit', 
                     month: '2-digit', 
@@ -88,9 +88,9 @@ export default function PatientPublicPage() {
   };
 
   const getStatusColor = (level: string) => {
-    if (level === 'Well-controlled') return 'bg-green-500 text-white';
-    if (level === 'Partly Controlled') return 'bg-yellow-500 text-white';
-    return 'bg-red-500 text-white';
+    if (level === 'Well-controlled') return 'bg-green-500 text-white dark:bg-green-600';
+    if (level === 'Partly Controlled') return 'bg-yellow-500 text-white dark:bg-yellow-600';
+    return 'bg-red-500 text-white dark:bg-red-600';
   };
 
   const getStatusIcon = (level: string) => {
@@ -112,11 +112,11 @@ export default function PatientPublicPage() {
 
     if (visit.control_level === 'Well-controlled') {
       return (
-        <div className="bg-green-50 border-l-8 border-green-500 rounded-lg p-5 mt-6 shadow-sm">
-          <h3 className="text-green-800 font-black text-lg flex items-center gap-2">
+        <div className="bg-green-50 dark:bg-green-900/20 border-l-8 border-green-500 rounded-lg p-5 mt-6 shadow-sm">
+          <h3 className="text-green-800 dark:text-green-400 font-black text-lg flex items-center gap-2">
             <CheckCircle /> โซนสีเขียว: สบายดี
           </h3>
-          <ul className="mt-3 space-y-2 text-green-900 text-sm font-medium list-disc pl-5">
+          <ul className="mt-3 space-y-2 text-green-900 dark:text-green-200 text-sm font-medium list-disc pl-5">
             <li>คุณไม่มีอาการหอบเหนื่อย สามารถทำกิจกรรมได้ปกติ</li>
             <li><strong>การใช้ยา:</strong> ใช้ยา <span className="font-bold underline">{controller}</span> วันละ 2 ครั้ง เช้า-เย็น อย่างต่อเนื่อง (ห้ามหยุดยาเอง)</li>
             <li>ใช้ยา <span className="font-bold underline">{reliever}</span> เฉพาะเวลามีอาการ หรือก่อนออกกำลังกาย</li>
@@ -125,11 +125,11 @@ export default function PatientPublicPage() {
       );
     } else if (visit.control_level === 'Partly Controlled') {
       return (
-        <div className="bg-yellow-50 border-l-8 border-yellow-500 rounded-lg p-5 mt-6 shadow-sm">
-          <h3 className="text-yellow-800 font-black text-lg flex items-center gap-2">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-8 border-yellow-500 rounded-lg p-5 mt-6 shadow-sm">
+          <h3 className="text-yellow-800 dark:text-yellow-400 font-black text-lg flex items-center gap-2">
             <AlertTriangle /> โซนสีเหลือง: เริ่มมีอาการ
           </h3>
-          <ul className="mt-3 space-y-2 text-yellow-900 text-sm font-medium list-disc pl-5">
+          <ul className="mt-3 space-y-2 text-yellow-900 dark:text-yellow-200 text-sm font-medium list-disc pl-5">
             <li>มีอาการไอ เหนื่อย หรือตื่นมาไอตอนกลางคืน</li>
             <li><strong>การใช้ยา:</strong> ใช้ยา <span className="font-bold underline">{controller}</span> ต่อเนื่องตามปกติ</li>
             <li>เพิ่มการใช้ยา <span className="font-bold underline">{reliever}</span> 2 พัฟ ทุก 4-6 ชั่วโมง</li>
@@ -139,11 +139,11 @@ export default function PatientPublicPage() {
       );
     } else {
       return (
-        <div className="bg-red-50 border-l-8 border-red-500 rounded-lg p-5 mt-6 shadow-sm animate-pulse">
-          <h3 className="text-red-800 font-black text-lg flex items-center gap-2">
+        <div className="bg-red-50 dark:bg-red-900/20 border-l-8 border-red-500 rounded-lg p-5 mt-6 shadow-sm animate-pulse">
+          <h3 className="text-red-800 dark:text-red-400 font-black text-lg flex items-center gap-2">
             <XCircle /> โซนสีแดง: อันตราย!
           </h3>
-          <ul className="mt-3 space-y-2 text-red-900 text-sm font-medium list-disc pl-5">
+          <ul className="mt-3 space-y-2 text-red-900 dark:text-red-200 text-sm font-medium list-disc pl-5">
              <li>หอบเหนื่อยมาก พูดได้ทีละคำ หายใจมีเสียงหวีด</li>
              <li><strong>การปฏิบัติตัวด่วน:</strong> พ่นยา <span className="font-bold underline">{reliever}</span> 2-4 พัฟ ทันที!</li>
              <li>ถ้าไม่ดีขึ้น ให้พ่นซ้ำได้ทุก 15 นาที (ไม่เกิน 3 ครั้ง)</li>
@@ -155,34 +155,35 @@ export default function PatientPublicPage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FEFCF8]">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#FEFCF8] dark:bg-black">
       <div className="animate-spin text-[#D97736] mb-4"><Activity size={40} /></div>
-      <p className="text-[#6B6560] font-bold">กำลังโหลดข้อมูล...</p>
+      <p className="text-[#6B6560] dark:text-gray-400 font-bold">กำลังโหลดข้อมูล...</p>
     </div>
   );
 
   if (!patient) return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#FEFCF8] text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#FEFCF8] dark:bg-black text-center">
       <AlertTriangle size={48} className="text-red-500 mb-4" />
-      <h1 className="text-xl font-black text-[#2D2A26]">ไม่พบข้อมูล</h1>
-      <p className="text-[#6B6560] mt-2">QR Code อาจไม่ถูกต้อง หรือข้อมูลถูกลบไปแล้ว</p>
+      <h1 className="text-xl font-black text-[#2D2A26] dark:text-white">ไม่พบข้อมูล</h1>
+      <p className="text-[#6B6560] dark:text-gray-400 mt-2">QR Code อาจไม่ถูกต้อง หรือข้อมูลถูกลบไปแล้ว</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F2F2F2] pb-10 font-sans text-[#2D2A26]">
+    <div className="min-h-screen bg-[#F2F2F2] dark:bg-black pb-10 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
       
-      {/* ========================================
-        ส่วนที่ 1: หน้าจอปกติ (Screen View)
-        จะซ่อนเมื่อสั่งพิมพ์ (print:hidden)
-        ========================================
-      */}
+      {/* ส่วนแสดงผลหน้าจอ (ซ่อนตอนพิมพ์) */}
       <div className="print:hidden">
         
-        {/* Header Mobile */}
-        <div className="bg-[#2D2A26] text-white p-6 rounded-b-[30px] shadow-lg relative overflow-hidden">
+        {/* Header */}
+        <div className="bg-[#2D2A26] dark:bg-[#1a1a1a] text-white p-6 rounded-b-[30px] shadow-lg relative overflow-hidden transition-colors">
+            {/* ปุ่มเปลี่ยนธีม (ลอยขวาบน) */}
+            <div className="absolute top-4 right-4 z-50">
+                <ThemeToggle />
+            </div>
+
             <div className="absolute top-0 right-0 p-4 opacity-10"><Activity size={120} /></div>
-            <div className="relative z-10">
+            <div className="relative z-10 pt-4">
                 <p className="text-white/60 text-sm font-bold mb-1">สวัสดีคุณ</p>
                 <h1 className="text-3xl font-black">{patient.first_name} {patient.last_name}</h1>
                 <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
@@ -194,15 +195,15 @@ export default function PatientPublicPage() {
         <div className="px-5 -mt-8 relative z-20 space-y-6">
             
             {/* 1. Status Card */}
-            <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
-                <h2 className="text-[#6B6560] font-bold text-xs uppercase mb-4 tracking-wider">ผลการประเมินล่าสุด</h2>
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md border border-gray-100 dark:border-zinc-800 transition-colors">
+                <h2 className="text-[#6B6560] dark:text-zinc-400 font-bold text-xs uppercase mb-4 tracking-wider">ผลการประเมินล่าสุด</h2>
                 {lastVisit ? (
                     <div className="text-center">
                         <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg ${getStatusColor(lastVisit.control_level)}`}>
                             {getStatusIcon(lastVisit.control_level)}
                         </div>
-                        <h3 className="text-xl font-black text-[#2D2A26] mb-1">{getStatusText(lastVisit.control_level)}</h3>
-                        <p className="text-[#6B6560] text-sm">อัปเดต: {new Date(lastVisit.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit'})}</p>
+                        <h3 className="text-xl font-black text-[#2D2A26] dark:text-white mb-1">{getStatusText(lastVisit.control_level)}</h3>
+                        <p className="text-[#6B6560] dark:text-zinc-400 text-sm">อัปเดต: {new Date(lastVisit.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit'})}</p>
                     </div>
                 ) : (
                     <div className="text-center py-4 text-gray-400">ยังไม่มีประวัติการตรวจ</div>
@@ -212,10 +213,10 @@ export default function PatientPublicPage() {
             {/* 2. Action Plan */}
             {lastVisit && (
                 <div>
-                    <div className="flex items-center gap-2 mb-2 mt-4 opacity-60">
-                        <div className="h-[1px] bg-black flex-1"></div>
-                        <span className="text-xs font-bold uppercase tracking-wider">Asthma Action Plan</span>
-                        <div className="h-[1px] bg-black flex-1"></div>
+                    <div className="flex items-center gap-2 mb-2 mt-4 opacity-60 dark:opacity-40">
+                        <div className="h-[1px] bg-black dark:bg-white flex-1"></div>
+                        <span className="text-xs font-bold uppercase tracking-wider dark:text-white">Asthma Action Plan</span>
+                        <div className="h-[1px] bg-black dark:bg-white flex-1"></div>
                     </div>
                     {renderActionPlan(lastVisit)}
                 </div>
@@ -223,7 +224,7 @@ export default function PatientPublicPage() {
 
             {/* 3. Next Appointment */}
             {lastVisit?.next_appt && (
-                <div className="bg-[#D97736] text-white rounded-2xl p-6 shadow-lg flex items-center justify-between">
+                <div className="bg-[#D97736] dark:bg-[#b05d28] text-white rounded-2xl p-6 shadow-lg flex items-center justify-between transition-colors">
                     <div>
                         <p className="text-white/80 text-xs font-bold uppercase mb-1">นัดหมายครั้งต่อไป</p>
                         <h3 className="text-2xl font-black">{new Date(lastVisit.next_appt).toLocaleDateString('th-TH', { dateStyle: 'long' })}</h3>
@@ -234,32 +235,32 @@ export default function PatientPublicPage() {
 
             {/* 4. Medications */}
             {lastVisit && (
-                <div className="bg-white rounded-2xl p-6 shadow-md">
-                    <h3 className="font-bold flex items-center gap-2 mb-4 text-[#2D2A26]"><Pill size={18} /> รายการยาปัจจุบัน</h3>
+                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
+                    <h3 className="font-bold flex items-center gap-2 mb-4 text-[#2D2A26] dark:text-white"><Pill size={18} /> รายการยาปัจจุบัน</h3>
                     <div className="space-y-3 text-sm">
-                        <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                            <span className="text-gray-600">ยาควบคุม</span>
-                            <span className="font-bold text-blue-900">{lastVisit.controller || "-"}</span>
+                        <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                            <span className="text-gray-600 dark:text-gray-300">ยาควบคุม</span>
+                            <span className="font-bold text-blue-900 dark:text-blue-300">{lastVisit.controller || "-"}</span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                            <span className="text-gray-600">ยาฉุกเฉิน</span>
-                            <span className="font-bold text-orange-900">{lastVisit.reliever || "-"}</span>
+                        <div className="flex justify-between items-center p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+                            <span className="text-gray-600 dark:text-gray-300">ยาฉุกเฉิน</span>
+                            <span className="font-bold text-orange-900 dark:text-orange-300">{lastVisit.reliever || "-"}</span>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* 5. Mini Chart (with Year) */}
+            {/* 5. Mini Chart */}
             {visitHistory.length > 0 && (
-                <div className="bg-white rounded-2xl p-6 shadow-md">
+                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-md transition-colors">
                     <h3 className="font-bold flex items-center gap-2 mb-4 text-[#D97736]"><Activity size={18} /> แนวโน้มค่าปอด (PEFR)</h3>
                     <div className="h-[200px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={visitHistory}>
-                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                                <XAxis dataKey="date" tick={{fontSize: 10}} />
-                                <YAxis domain={[0, 800]} tick={{fontSize: 10}} width={30} />
-                                <Tooltip contentStyle={{ borderRadius: '10px', fontSize: '12px' }}/>
+                                <CartesianGrid strokeDasharray="3 3" opacity={0.3} stroke="#888888" />
+                                <XAxis dataKey="date" tick={{fontSize: 10, fill: '#888888'}} />
+                                <YAxis domain={[0, 800]} tick={{fontSize: 10, fill: '#888888'}} width={30} />
+                                <Tooltip contentStyle={{ borderRadius: '10px', fontSize: '12px', color: '#000' }}/>
                                 <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 3, fill: '#D97736', stroke: '#fff', strokeWidth: 1 }} />
                             </LineChart>
                         </ResponsiveContainer>
@@ -270,7 +271,7 @@ export default function PatientPublicPage() {
             {/* Print Button */}
             <button 
                 onClick={handlePrint}
-                className="w-full bg-[#2D2A26] text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform mb-8"
+                className="w-full bg-[#2D2A26] dark:bg-white dark:text-black text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform mb-8"
             >
                 <Printer size={20} /> พิมพ์บัตรประจำตัว Asthma ID
             </button>
@@ -283,16 +284,11 @@ export default function PatientPublicPage() {
       </div>
 
       {/* ========================================
-        ส่วนที่ 2: หน้าตาบัตร (ID Card View)
-        จะแสดงเฉพาะตอนสั่งพิมพ์ (hidden print:flex)
+        ส่วนที่ 2: หน้าตาบัตร (Print View - ไม่ต้อง Dark Mode)
         ========================================
       */}
       <div className="hidden print:flex print:items-center print:justify-center print:min-h-screen bg-white">
-          
-          {/* กรอบบัตร (ขนาดมาตรฐานบัตรเครดิต CR80: 85.6mm x 54mm) */}
-          <div className="w-[85.6mm] h-[54mm] border border-gray-300 rounded-lg overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col">
-              
-              {/* แถบหัวบัตร */}
+          <div className="w-[85.6mm] h-[54mm] border border-gray-300 rounded-lg overflow-hidden relative shadow-none print:shadow-none bg-white flex flex-col text-black">
               <div className="bg-[#D97736] text-white p-2 flex items-center justify-between h-[12mm]">
                   <div className="flex items-center gap-2">
                       <div className="bg-white p-1 rounded-full text-[#D97736]">
@@ -302,21 +298,13 @@ export default function PatientPublicPage() {
                   </div>
                   <span className="text-[8px] font-bold opacity-80">โรงพยาบาลสวรรคโลก</span>
               </div>
-
-              {/* เนื้อหาบัตร */}
               <div className="flex-1 p-3 flex gap-3 items-center">
-                  
-                  {/* ซ้าย: QR Code */}
                   <div className="w-[28mm] flex flex-col items-center justify-center">
                       <div className="border-2 border-[#2D2A26] p-1 bg-white">
                           <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient?.public_token}`} size={80} />
                       </div>
-                      <span className="text-[6px] font-bold text-center mt-1 text-gray-600">
-                          สแกนเพื่อดูแผนฉุกเฉิน
-                      </span>
+                      <span className="text-[6px] font-bold text-center mt-1 text-gray-600">สแกนเพื่อดูแผนฉุกเฉิน</span>
                   </div>
-
-                  {/* ขวา: ข้อมูล */}
                   <div className="flex-1 space-y-1">
                       <div>
                           <p className="text-[7px] text-gray-500 uppercase font-bold">Name</p>
@@ -346,8 +334,6 @@ export default function PatientPublicPage() {
                       </div>
                   </div>
               </div>
-
-              {/* แถบท้ายบัตร */}
               <div className="bg-[#2D2A26] h-[3mm] w-full mt-auto"></div>
           </div>
       </div>
