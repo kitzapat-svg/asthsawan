@@ -1,16 +1,30 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Activity, Calendar, FileText, CheckCircle, AlertTriangle, Stethoscope } from 'lucide-react';
-import { ThemeToggle } from '@/components/theme-toggle'; // <--- เรียกใช้ปุ่มปรับธีม
+import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function RecordVisitPage() {
   const params = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   
-  // State เก็บข้อมูลฟอร์ม
+  // Checklist เทคนิคการพ่นยา (MDI) ตามรูปภาพ
+  const mdiSteps = [
+    "1. เขย่าหลอดพ่นยาในแนวตั้ง 3-4 ครั้ง",
+    "2. ถือหลอดพ่นยาในแนวตั้ง",
+    "3. หายใจออกทางปากให้สุดเต็มที่",
+    "4. ตั้งศีรษะให้ตรง",
+    "5. ใช้ริมฝีปากอมปากหลอดพ่นยาให้สนิท",
+    "6. หายใจเข้าทางปากช้าๆ ลึกๆ พร้อมกับกดที่พ่นยา 1 ครั้ง",
+    "7. กลั้นลมหายใจประมาณ 10 วินาที",
+    "8. ผ่อนลมหายใจออกทางปากหรือจมูกช้าๆ"
+  ];
+
+  // State เก็บสถานะ Checklist (True = ทำ, False = ไม่ทำ)
+  const [checklist, setChecklist] = useState<boolean[]>(new Array(8).fill(false));
+
   const [formData, setFormData] = useState({
     pefr: '',
     control_level: 'Well-controlled',
@@ -23,11 +37,19 @@ export default function RecordVisitPage() {
     next_appt: '',
     note: '-',
     is_new_case: 'FALSE',
-    inhaler_eval: '8' // คะแนนเต็ม 8
   });
+
+  // คำนวณคะแนนรวมอัตโนมัติทุกครั้งที่ Checklist เปลี่ยน
+  const totalScore = checklist.filter(Boolean).length;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const toggleCheck = (index: number) => {
+    const newChecklist = [...checklist];
+    newChecklist[index] = !newChecklist[index];
+    setChecklist(newChecklist);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,34 +59,49 @@ export default function RecordVisitPage() {
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       
-      const dataRow = [
-        params.hn,                  // 1. hn
-        today,                      // 2. date
-        formData.pefr,              // 3. pefr
-        formData.control_level,     // 4. control_level
-        formData.controller,        // 5. controller
-        formData.reliever,          // 6. reliever
-        formData.adherence + '%',   // 7. adherence (เติม % ให้)
-        formData.drp,               // 8. drp
-        formData.advice,            // 9. advice
-        formData.technique_check,   // 10. technique_check
-        formData.next_appt,         // 11. next_appt
-        formData.note,              // 12. note
-        formData.is_new_case,       // 13. is_new_case
-        formData.inhaler_eval       // 14. inhaler_eval
+      // 1. เตรียมข้อมูลลงตาราง visits (หลัก)
+      const visitData = [
+        params.hn,
+        today,
+        formData.pefr,
+        formData.control_level,
+        formData.controller,
+        formData.reliever,
+        formData.adherence + '%',
+        formData.drp,
+        formData.advice,
+        formData.technique_check,
+        formData.next_appt,
+        formData.note,
+        formData.is_new_case,
+        totalScore.toString() // บันทึกคะแนนรวมลงตารางหลัก
       ];
 
-      const res = await fetch('/api/db', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'visits', // ชื่อ Tab ใน Google Sheets
-          data: dataRow
-        })
-      });
+      // 2. เตรียมข้อมูลลงตาราง technique_checks (รายละเอียด)
+      const checklistData = [
+        params.hn,
+        today,
+        ...checklist.map(checked => checked ? "1" : "0"), // แปลง true/false เป็น 1/0
+        totalScore.toString()
+      ];
 
-      if (res.ok) {
-        alert("บันทึกผลการรักษาเรียบร้อย!");
+      // ส่ง Request บันทึกพร้อมกัน 2 ชีท
+      const [resVisit, resChecklist] = await Promise.all([
+        fetch('/api/db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'visits', data: visitData })
+        }),
+        // บันทึก Checklist เฉพาะถ้ามีการประเมิน (technique_check = ทำ)
+        formData.technique_check === 'ทำ' ? fetch('/api/db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'technique_checks', data: checklistData })
+        }) : Promise.resolve({ ok: true }) // ถ้าไม่ทำ ก็ข้ามไป
+      ]);
+
+      if (resVisit.ok) {
+        alert(`บันทึกเรียบร้อย! (คะแนนเทคนิค: ${totalScore}/8)`);
         router.push(`/staff/patient/${params.hn}`);
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึก");
@@ -87,8 +124,6 @@ export default function RecordVisitPage() {
         >
           <ArrowLeft size={20} /> ยกเลิก
         </button>
-        
-        {/* ปุ่มเปลี่ยนธีม */}
         <ThemeToggle />
       </nav>
 
@@ -105,153 +140,115 @@ export default function RecordVisitPage() {
 
         <form onSubmit={handleSubmit} className="space-y-8">
           
-          {/* Section 1: การประเมินผล (Evaluation) */}
-          <div className="bg-[#F7F3ED] dark:bg-zinc-800/50 p-6 border border-[#3D3834]/20 dark:border-zinc-700 rounded-lg space-y-4 transition-colors">
+          {/* Section 1: Clinical */}
+          <div className="bg-[#F7F3ED] dark:bg-zinc-800/50 p-6 border border-[#3D3834]/20 dark:border-zinc-700 rounded-lg space-y-4">
              <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Activity size={18}/> 1. การประเมินผล (Clinical)</h3>
-             
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label className="block text-sm font-bold mb-2">ค่า PEFR (L/min) <span className="text-red-500">*</span></label>
-                    <input 
-                        type="number" name="pefr" required
-                        className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-black text-xl text-center dark:text-white transition-colors"
-                        value={formData.pefr} onChange={handleChange}
-                        placeholder="000"
-                    />
+                    <input type="number" name="pefr" required className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] outline-none font-black text-xl text-center dark:text-white" value={formData.pefr} onChange={handleChange} placeholder="000" />
                 </div>
                 <div>
-                    <label className="block text-sm font-bold mb-2">ระดับการควบคุม (Control Level)</label>
-                    <select name="control_level" value={formData.control_level} onChange={handleChange}
-                        className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none font-bold dark:text-white appearance-none cursor-pointer transition-colors"
-                    >
+                    <label className="block text-sm font-bold mb-2">ระดับการควบคุม</label>
+                    <select name="control_level" value={formData.control_level} onChange={handleChange} className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none font-bold dark:text-white">
                         <option value="Well-controlled">🟢 Well-controlled</option>
                         <option value="Partly Controlled">🟡 Partly Controlled</option>
                         <option value="Uncontrolled">🔴 Uncontrolled</option>
                     </select>
                 </div>
              </div>
-
              <div className="flex items-center gap-4 pt-2">
                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" 
-                        checked={formData.is_new_case === 'TRUE'}
-                        onChange={(e) => setFormData({...formData, is_new_case: e.target.checked ? 'TRUE' : 'FALSE'})}
-                        className="w-5 h-5 accent-[#D97736]"
-                    />
+                    <input type="checkbox" checked={formData.is_new_case === 'TRUE'} onChange={(e) => setFormData({...formData, is_new_case: e.target.checked ? 'TRUE' : 'FALSE'})} className="w-5 h-5 accent-[#D97736]" />
                     <span className="font-bold text-sm dark:text-zinc-300">ผู้ป่วยรายใหม่ (New Case)</span>
                  </label>
              </div>
           </div>
 
-          {/* Section 2: การใช้ยา (Medication) */}
+          {/* Section 2: Medication */}
           <div className="space-y-4">
              <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Stethoscope size={18}/> 2. การใช้ยา (Medication)</h3>
-             
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาควบคุม (Controller)</label>
-                    <select name="controller" value={formData.controller} onChange={handleChange}
-                        className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-colors"
-                    >
+                    <select name="controller" value={formData.controller} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white">
                         <option value="Seretide">Seretide</option>
                         <option value="Budesonide">Budesonide</option>
                     </select>
                 </div>
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาบรรเทา (Reliever)</label>
-                    <select name="reliever" value={formData.reliever} onChange={handleChange}
-                        className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-colors"
-                    >
+                    <select name="reliever" value={formData.reliever} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white">
                         <option value="Salbutamol">Salbutamol</option>
                         <option value="Berodual">Berodual</option>
                     </select>
                 </div>
              </div>
-
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label className="block text-sm font-bold mb-2">ความสม่ำเสมอ (Adherence %)</label>
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="range" name="adherence" min="0" max="100" step="10"
-                            className="w-full accent-[#D97736]"
-                            value={formData.adherence} onChange={handleChange}
-                        />
-                        <span className="font-bold w-12 text-right dark:text-white">{formData.adherence}%</span>
-                    </div>
+                    <label className="block text-sm font-bold mb-2">ความสม่ำเสมอ ({formData.adherence}%)</label>
+                    <input type="range" name="adherence" min="0" max="100" step="10" className="w-full accent-[#D97736]" value={formData.adherence} onChange={handleChange} />
                 </div>
                 <div>
                     <label className="block text-sm font-bold mb-2">ปัญหาการใช้ยา (DRP)</label>
-                    <input type="text" name="drp" value={formData.drp} onChange={handleChange}
-                        className="w-full px-4 py-2 bg-[#F7F3ED] dark:bg-zinc-800 border border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-colors"
-                    />
+                    <input type="text" name="drp" value={formData.drp} onChange={handleChange} className="w-full px-4 py-2 bg-[#F7F3ED] dark:bg-zinc-800 border border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white" />
                 </div>
              </div>
           </div>
 
-          {/* Section 3: เทคนิคพ่นยา (Inhaler Technique) */}
-          <div className="space-y-4 border-t border-gray-200 dark:border-zinc-800 pt-4">
-             <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><CheckCircle size={18}/> 3. เทคนิคพ่นยา (Inhaler Technique)</h3>
+          {/* Section 3: Inhaler Technique Checklist */}
+          <div className="space-y-4 border-t border-gray-200 dark:border-zinc-800 pt-6">
+             <div className="flex justify-between items-center">
+                 <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><ClipboardList size={18}/> 3. เทคนิคพ่นยา MDI ({totalScore}/8)</h3>
+                 <select name="technique_check" value={formData.technique_check} onChange={handleChange} className="px-3 py-1 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded text-sm">
+                    <option value="ทำ">✅ ประเมิน</option>
+                    <option value="ไม่ทำ">❌ ไม่ประเมิน</option>
+                 </select>
+             </div>
              
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label className="block text-sm font-bold mb-2">ตรวจสอบเทคนิค (Check)</label>
-                    <select name="technique_check" value={formData.technique_check} onChange={handleChange}
-                        className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-colors"
-                    >
-                        <option value="ทำ">✅ ทำ (Check)</option>
-                        <option value="ไม่ทำ">❌ ไม่ทำ (No Check)</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-bold mb-2">คะแนนประเมิน (เต็ม 8)</label>
-                    <input 
-                        type="number" name="inhaler_eval" min="0" max="8"
-                        className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-bold text-center dark:text-white transition-colors"
-                        value={formData.inhaler_eval} onChange={handleChange}
-                    />
-                </div>
-             </div>
+             {formData.technique_check === 'ทำ' && (
+                 <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-700 p-4 rounded-lg space-y-3">
+                    {mdiSteps.map((step, index) => (
+                        <label key={index} className="flex items-start gap-3 cursor-pointer group p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded transition-colors">
+                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${checklist[index] ? 'bg-[#D97736] border-[#D97736]' : 'border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'}`}>
+                                <input type="checkbox" className="hidden" checked={checklist[index]} onChange={() => toggleCheck(index)} />
+                                {checklist[index] && <CheckCircle size={16} className="text-white" />}
+                            </div>
+                            <span className={`text-sm font-medium transition-colors ${checklist[index] ? 'text-[#D97736] font-bold' : 'text-gray-600 dark:text-zinc-400 group-hover:text-black dark:group-hover:text-white'}`}>
+                                {step}
+                            </span>
+                        </label>
+                    ))}
+                    <div className="mt-4 pt-3 border-t border-dashed border-gray-300 dark:border-zinc-700 flex justify-between items-center">
+                        <span className="text-sm font-bold text-gray-500">ผลการประเมินรวม</span>
+                        <div className={`text-lg font-black px-4 py-1 rounded border-2 ${totalScore >= 7 ? 'bg-green-50 text-green-600 border-green-200' : totalScore >= 4 ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
+                            {totalScore} / 8 คะแนน
+                        </div>
+                    </div>
+                 </div>
+             )}
           </div>
 
-          {/* Section 4: แผนการรักษา (Plan) */}
-          <div className="bg-[#FFF9F0] dark:bg-orange-900/10 p-6 border border-[#D97736]/30 rounded-lg space-y-4 transition-colors">
+          {/* Section 4: Plan */}
+          <div className="bg-[#FFF9F0] dark:bg-orange-900/10 p-6 border border-[#D97736]/30 rounded-lg space-y-4">
              <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><FileText size={18}/> 4. แผนการรักษา (Plan)</h3>
-             
              <div>
                 <label className="block text-sm font-bold mb-2">คำแนะนำ (Advice)</label>
-                <input type="text" name="advice" value={formData.advice} onChange={handleChange}
-                    className="w-full px-4 py-2 bg-white dark:bg-zinc-800 border border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-colors"
-                />
+                <input type="text" name="advice" value={formData.advice} onChange={handleChange} className="w-full px-4 py-2 bg-white dark:bg-zinc-800 border border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white" />
              </div>
-             
              <div>
                 <label className="block text-sm font-bold mb-2">บันทึกเพิ่มเติม (Note)</label>
-                <textarea name="note" rows={2} value={formData.note} onChange={handleChange}
-                    className="w-full px-4 py-2 bg-white dark:bg-zinc-800 border border-[#3D3834] dark:border-zinc-600 outline-none resize-none dark:text-white transition-colors"
-                />
+                <textarea name="note" rows={2} value={formData.note} onChange={handleChange} className="w-full px-4 py-2 bg-white dark:bg-zinc-800 border border-[#3D3834] dark:border-zinc-600 outline-none resize-none dark:text-white" />
              </div>
-
              <div>
-                <label className="block text-sm font-bold mb-2">วันนัดครั้งถัดไป (Next Appointment)</label>
-                <input type="date" name="next_appt" value={formData.next_appt} onChange={handleChange}
-                    className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-bold dark:text-white transition-colors"
-                />
+                <label className="block text-sm font-bold mb-2">วันนัดครั้งถัดไป</label>
+                <input type="date" name="next_appt" value={formData.next_appt} onChange={handleChange} className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] outline-none font-bold dark:text-white" />
              </div>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-[#2D2A26] dark:bg-white text-white dark:text-black font-bold text-lg py-4 border-2 border-[#3D3834] dark:border-zinc-600 shadow-[4px_4px_0px_0px_#888] dark:shadow-none hover:bg-[#D97736] dark:hover:bg-gray-200 hover:shadow-[4px_4px_0px_0px_#3D3834] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? "กำลังบันทึก..." : (
-              <>
-                <Save size={20} /> บันทึกผลการรักษา
-              </>
-            )}
+          <button type="submit" disabled={loading} className="w-full bg-[#2D2A26] dark:bg-white text-white dark:text-black font-bold text-lg py-4 border-2 border-[#3D3834] dark:border-zinc-600 shadow-[4px_4px_0px_0px_#888] dark:shadow-none hover:bg-[#D97736] dark:hover:bg-gray-200 hover:shadow-[4px_4px_0px_0px_#3D3834] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2">
+            {loading ? "กำลังบันทึก..." : <><Save size={20} /> บันทึกผลการรักษา</>}
           </button>
-
         </form>
       </div>
     </div>
