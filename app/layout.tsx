@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Providers } from "./providers"; // <--- Import ที่เราสร้างไว้
+import { Providers } from "./providers"; // <--- Import ไฟล์ที่เราเพิ่งสร้าง
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,10 +14,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// ปรับ Metadata ให้ตรงกับชื่อโปรเจกต์ของคุณ
 export const metadata: Metadata = {
-  title: "Asthma Care Connect",
-  description: "ระบบดูแลผู้ป่วยโรคหืด",
+  title: "Brand - Modern Business Solutions",
+  description: "Empower your business with cutting-edge solutions. Build faster, scale smarter, grow bigger.",
 };
 
 export default function RootLayout({
@@ -30,19 +29,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* 1. เรียกใช้ Providers (Session + IdleTimer) เป็นตัวหุ้มชั้นนอกสุด */}
-        <Providers>
-            {/* 2. เรียกใช้ ThemeProvider (Dark Mode) หุ้มชั้นถัดมา */}
-            <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-                disableTransitionOnChange
-            >
-                {children}
-            </ThemeProvider>
-        </Providers>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
 }
+
+
