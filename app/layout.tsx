@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Providers } from "./providers"; // <--- Import ไฟล์ Providers ที่เราสร้าง
+import { Providers } from "./providers"; // <--- Import ที่เราสร้างไว้
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,26 +14,35 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// ปรับ Metadata ให้ตรงกับชื่อโปรเจกต์ของคุณ
 export const metadata: Metadata = {
-  title: "AsthSawan",
-  description: "Empower your business with cutting-edge solutions. Build faster, scale smarter, grow bigger.",
+  title: "Asthma Care Connect",
+  description: "ระบบดูแลผู้ป่วยโรคหืด",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        {/* เรียกใช้ Providers เพื่อหุ้มทั้งแอป */}
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {/* 1. เรียกใช้ Providers (Session + IdleTimer) เป็นตัวหุ้มชั้นนอกสุด */}
         <Providers>
-          {children}
+            {/* 2. เรียกใช้ ThemeProvider (Dark Mode) หุ้มชั้นถัดมา */}
+            <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+            >
+                {children}
+            </ThemeProvider>
         </Providers>
       </body>
     </html>
   );
 }
-
-
