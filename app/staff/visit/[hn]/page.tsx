@@ -10,7 +10,7 @@ export default function RecordVisitPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   
-  // Checklist เทคนิคการพ่นยา (MDI) ตามรูปภาพ
+  // Checklist เทคนิคการพ่นยา (MDI)
   const mdiSteps = [
     "1. เขย่าหลอดพ่นยาในแนวตั้ง 3-4 ครั้ง",
     "2. ถือหลอดพ่นยาในแนวตั้ง",
@@ -22,7 +22,7 @@ export default function RecordVisitPage() {
     "8. ผ่อนลมหายใจออกทางปากหรือจมูกช้าๆ"
   ];
 
-  // State เก็บสถานะ Checklist (True = ทำ, False = ไม่ทำ)
+  // State เก็บสถานะ Checklist
   const [checklist, setChecklist] = useState<boolean[]>(new Array(8).fill(false));
 
   const [formData, setFormData] = useState({
@@ -33,13 +33,12 @@ export default function RecordVisitPage() {
     adherence: '100',
     drp: '-',
     advice: '-',
-    technique_check: 'ทำ',
+    technique_check: 'ไม่', // <--- แก้ Default เป็น 'ไม่'
     next_appt: '',
     note: '-',
     is_new_case: 'FALSE',
   });
 
-  // คำนวณคะแนนรวมอัตโนมัติทุกครั้งที่ Checklist เปลี่ยน
   const totalScore = checklist.filter(Boolean).length;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -59,6 +58,9 @@ export default function RecordVisitPage() {
     try {
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       
+      // Logic บันทึกคะแนน: ถ้าประเมิน ('ทำ') ให้บันทึกคะแนน, ถ้า 'ไม่' ให้บันทึก '-'
+      const inhalerScore = formData.technique_check === 'ทำ' ? totalScore.toString() : '-';
+
       // 1. เตรียมข้อมูลลงตาราง visits (หลัก)
       const visitData = [
         params.hn,
@@ -70,38 +72,45 @@ export default function RecordVisitPage() {
         formData.adherence + '%',
         formData.drp,
         formData.advice,
-        formData.technique_check,
+        formData.technique_check, // ค่าจะเป็น 'ทำ' หรือ 'ไม่'
         formData.next_appt,
         formData.note,
         formData.is_new_case,
-        totalScore.toString() // บันทึกคะแนนรวมลงตารางหลัก
+        inhalerScore // ค่าจะเป็น คะแนน(0-8) หรือ '-'
       ];
 
       // 2. เตรียมข้อมูลลงตาราง technique_checks (รายละเอียด)
       const checklistData = [
         params.hn,
         today,
-        ...checklist.map(checked => checked ? "1" : "0"), // แปลง true/false เป็น 1/0
+        ...checklist.map(checked => checked ? "1" : "0"),
         totalScore.toString()
       ];
 
-      // ส่ง Request บันทึกพร้อมกัน 2 ชีท
-      const [resVisit, resChecklist] = await Promise.all([
+      // ส่ง Request
+      const promises = [
         fetch('/api/db', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'visits', data: visitData })
-        }),
-        // บันทึก Checklist เฉพาะถ้ามีการประเมิน (technique_check = ทำ)
-        formData.technique_check === 'ทำ' ? fetch('/api/db', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'technique_checks', data: checklistData })
-        }) : Promise.resolve({ ok: true }) // ถ้าไม่ทำ ก็ข้ามไป
-      ]);
+        })
+      ];
+
+      // บันทึก Checklist เฉพาะถ้ามีการประเมิน (technique_check = ทำ)
+      if (formData.technique_check === 'ทำ') {
+        promises.push(
+            fetch('/api/db', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'technique_checks', data: checklistData })
+            })
+        );
+      }
+
+      const [resVisit] = await Promise.all(promises);
 
       if (resVisit.ok) {
-        alert(`บันทึกเรียบร้อย! (คะแนนเทคนิค: ${totalScore}/8)`);
+        alert("บันทึกผลการรักษาเรียบร้อย!");
         router.push(`/staff/patient/${params.hn}`);
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึก");
@@ -199,15 +208,15 @@ export default function RecordVisitPage() {
           {/* Section 3: Inhaler Technique Checklist */}
           <div className="space-y-4 border-t border-gray-200 dark:border-zinc-800 pt-6">
              <div className="flex justify-between items-center">
-                 <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><ClipboardList size={18}/> 3. เทคนิคพ่นยา MDI ({totalScore}/8)</h3>
-                 <select name="technique_check" value={formData.technique_check} onChange={handleChange} className="px-3 py-1 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded text-sm">
+                 <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><ClipboardList size={18}/> 3. เทคนิคพ่นยา MDI</h3>
+                 <select name="technique_check" value={formData.technique_check} onChange={handleChange} className="px-3 py-1 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded text-sm cursor-pointer">
+                    <option value="ไม่">❌ ไม่ประเมิน</option>
                     <option value="ทำ">✅ ประเมิน</option>
-                    <option value="ไม่ทำ">❌ ไม่ประเมิน</option>
                  </select>
              </div>
              
-             {formData.technique_check === 'ทำ' && (
-                 <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-700 p-4 rounded-lg space-y-3">
+             {formData.technique_check === 'ทำ' ? (
+                 <div className="bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-700 p-4 rounded-lg space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                     {mdiSteps.map((step, index) => (
                         <label key={index} className="flex items-start gap-3 cursor-pointer group p-2 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded transition-colors">
                             <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${checklist[index] ? 'bg-[#D97736] border-[#D97736]' : 'border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800'}`}>
@@ -226,6 +235,10 @@ export default function RecordVisitPage() {
                         </div>
                     </div>
                  </div>
+             ) : (
+                <div className="text-sm text-gray-400 italic pl-6">
+                    * เลือก "ประเมิน" เพื่อเปิดแบบฟอร์มตรวจสอบเทคนิค
+                </div>
              )}
           </div>
 
