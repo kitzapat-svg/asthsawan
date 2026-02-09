@@ -2,13 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+
+// 1. เพิ่ม Type เพื่อให้รู้โครงสร้างข้อมูล Visit
+interface VisitData {
+  hn: string;
+  date: string;
+  controller: string;
+  reliever: string;
+}
 
 export default function RecordVisitPage() {
   const params = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [fetchingHistory, setFetchingHistory] = useState(true); // สถานะการดึงประวัติเก่า
   
   // Checklist เทคนิคการพ่นยา (MDI)
   const mdiSteps = [
@@ -28,16 +37,48 @@ export default function RecordVisitPage() {
   const [formData, setFormData] = useState({
     pefr: '',
     control_level: 'Well-controlled',
-    controller: 'Seretide',
-    reliever: 'Salbutamol',
+    controller: 'Seretide', // ค่าเริ่มต้น (เดี๋ยวจะถูกทับด้วยของเก่า)
+    reliever: 'Salbutamol', // ค่าเริ่มต้น
     adherence: '100',
     drp: '-',
     advice: '-',
-    technique_check: 'ไม่', // <--- แก้ Default เป็น 'ไม่'
+    technique_check: 'ไม่',
     next_appt: '',
     note: '-',
     is_new_case: 'FALSE',
   });
+
+  // 2. useEffect: ดึงข้อมูลยาจาก Visit ล่าสุดเมื่อเปิดหน้าเว็บ
+  useEffect(() => {
+    const fetchLastMedication = async () => {
+        try {
+            const res = await fetch('/api/db?type=visits');
+            const data: VisitData[] = await res.json();
+            
+            // หาประวัติของ HN นี้ และเรียงวันที่ล่าสุดขึ้นก่อน
+            const history = data
+                .filter(v => v.hn === params.hn)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            if (history.length > 0) {
+                const lastVisit = history[0];
+                // อัปเดตยาให้ตรงกับครั้งล่าสุด
+                setFormData(prev => ({
+                    ...prev,
+                    controller: lastVisit.controller || 'Seretide',
+                    reliever: lastVisit.reliever || 'Salbutamol'
+                }));
+            }
+        } catch (error) {
+            console.error("Error fetching history:", error);
+        } finally {
+            setFetchingHistory(false);
+        }
+    };
+
+    fetchLastMedication();
+  }, [params.hn]);
+
 
   const totalScore = checklist.filter(Boolean).length;
 
@@ -56,12 +97,10 @@ export default function RecordVisitPage() {
     setLoading(true);
 
     try {
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const today = new Date().toISOString().split('T')[0];
       
-      // Logic บันทึกคะแนน: ถ้าประเมิน ('ทำ') ให้บันทึกคะแนน, ถ้า 'ไม่' ให้บันทึก '-'
       const inhalerScore = formData.technique_check === 'ทำ' ? totalScore.toString() : '-';
 
-      // 1. เตรียมข้อมูลลงตาราง visits (หลัก)
       const visitData = [
         params.hn,
         today,
@@ -72,14 +111,13 @@ export default function RecordVisitPage() {
         formData.adherence + '%',
         formData.drp,
         formData.advice,
-        formData.technique_check, // ค่าจะเป็น 'ทำ' หรือ 'ไม่'
+        formData.technique_check,
         formData.next_appt,
         formData.note,
         formData.is_new_case,
-        inhalerScore // ค่าจะเป็น คะแนน(0-8) หรือ '-'
+        inhalerScore
       ];
 
-      // 2. เตรียมข้อมูลลงตาราง technique_checks (รายละเอียด)
       const checklistData = [
         params.hn,
         today,
@@ -87,7 +125,6 @@ export default function RecordVisitPage() {
         totalScore.toString()
       ];
 
-      // ส่ง Request
       const promises = [
         fetch('/api/db', {
             method: 'POST',
@@ -96,7 +133,6 @@ export default function RecordVisitPage() {
         })
       ];
 
-      // บันทึก Checklist เฉพาะถ้ามีการประเมิน (technique_check = ทำ)
       if (formData.technique_check === 'ทำ') {
         promises.push(
             fetch('/api/db', {
@@ -174,20 +210,32 @@ export default function RecordVisitPage() {
              </div>
           </div>
 
-          {/* Section 2: Medication */}
-          <div className="space-y-4">
-             <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Stethoscope size={18}/> 2. การใช้ยา (Medication)</h3>
+          {/* Section 2: Medication (Auto-filled) */}
+          <div className="space-y-4 relative">
+             <div className="flex items-center justify-between">
+                <h3 className="font-bold flex items-center gap-2 text-[#D97736]">
+                    <Stethoscope size={18}/> 2. การใช้ยา (Medication)
+                </h3>
+                {fetchingHistory && (
+                    <span className="text-xs text-gray-400 flex items-center gap-1 animate-pulse">
+                        <RefreshCw size={12} className="animate-spin"/> กำลังดึงข้อมูลยาเดิม...
+                    </span>
+                )}
+             </div>
+
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาควบคุม (Controller)</label>
-                    <select name="controller" value={formData.controller} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white">
+                    <select name="controller" value={formData.controller} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-all">
                         <option value="Seretide">Seretide</option>
                         <option value="Budesonide">Budesonide</option>
+                        <option value="Symbicort">Symbicort</option> 
+                        <option value="Flixotide">Flixotide</option>
                     </select>
                 </div>
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาบรรเทา (Reliever)</label>
-                    <select name="reliever" value={formData.reliever} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white">
+                    <select name="reliever" value={formData.reliever} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-all">
                         <option value="Salbutamol">Salbutamol</option>
                         <option value="Berodual">Berodual</option>
                     </select>
@@ -205,7 +253,7 @@ export default function RecordVisitPage() {
              </div>
           </div>
 
-          {/* Section 3: Inhaler Technique Checklist */}
+          {/* Section 3: Inhaler Technique */}
           <div className="space-y-4 border-t border-gray-200 dark:border-zinc-800 pt-6">
              <div className="flex justify-between items-center">
                  <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><ClipboardList size={18}/> 3. เทคนิคพ่นยา MDI</h3>
