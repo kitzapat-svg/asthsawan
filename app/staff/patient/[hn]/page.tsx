@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, FileText, ChevronDown, ChevronUp, Clock, Pill,
-  AlertTriangle, CheckCircle, Timer
+  AlertTriangle, Timer
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -36,7 +36,7 @@ interface Visit {
   controller: string;
   reliever: string;
   note: string;
-  technique_check: string; // เพิ่ม field นี้เพื่อเช็คประวัติการสอน
+  technique_check: string;
 }
 
 export default function PatientDetailPage() {
@@ -48,7 +48,6 @@ export default function PatientDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
-  // 1. ดึงข้อมูล
   useEffect(() => {
     fetchData();
   }, [params.hn]);
@@ -88,9 +87,8 @@ export default function PatientDetailPage() {
 
   // --- Logic คำนวณ Inhaler Review ---
   const getInhalerStatus = () => {
-    // หา Visit ล่าสุดที่มีการสอน ('ทำ')
     const lastReview = [...visitHistory]
-        .reverse() // หาจากล่าสุดก่อน
+        .reverse()
         .find(v => v.technique_check === 'ทำ');
 
     if (!lastReview) {
@@ -99,7 +97,7 @@ export default function PatientDetailPage() {
 
     const lastDate = new Date(lastReview.fullDate);
     const nextDate = new Date(lastDate);
-    nextDate.setFullYear(nextDate.getFullYear() + 1); // บวก 1 ปี
+    nextDate.setFullYear(nextDate.getFullYear() + 1); 
 
     const today = new Date();
     const diffTime = nextDate.getTime() - today.getTime();
@@ -114,9 +112,8 @@ export default function PatientDetailPage() {
 
   const inhalerStatus = getInhalerStatus();
 
-  // --- Logic อื่นๆ ---
-  const handleStatusChange = async (newStatus: string) => { /* ...เดิม... */ }; // (ละไว้เพื่อความกระชับ Code ส่วนนี้เหมือนเดิม)
-  const getAge = (dob: string) => { /* ...เดิม... */ 
+  // --- Helpers ---
+  const getAge = (dob: string) => {
     if (!dob) return 0;
     const birthDate = new Date(dob);
     const today = new Date();
@@ -127,7 +124,7 @@ export default function PatientDetailPage() {
     }
     return age;
   };
-  const calculatePredictedPEFR = (p: Patient) => { /* ...เดิม... */ 
+  const calculatePredictedPEFR = (p: Patient) => {
     const age = getAge(p.dob);
     const height = parseFloat(p.height || "0");
     if (height === 0) return 0;
@@ -139,7 +136,7 @@ export default function PatientDetailPage() {
     }
     return Math.max(0, Math.round(predicted));
   };
-  const getStatusStyle = (status: string) => { /* ...เดิม... */ 
+  const getStatusStyle = (status: string) => {
      if (status === 'Active') return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800';
      if (status === 'COPD') return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800';
      return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700';
@@ -167,7 +164,6 @@ export default function PatientDetailPage() {
           <ArrowLeft size={20} /> กลับหน้าหลัก
         </button>
         <div className="flex items-center gap-4">
-            {/* Status Dropdown */}
             <div className="relative">
                 <select 
                     value={patient.status}
@@ -175,7 +171,6 @@ export default function PatientDetailPage() {
                         const newStatus = e.target.value;
                         const confirmChange = window.confirm(`ยืนยันการเปลี่ยนสถานะเป็น "${newStatus}"?`);
                         if (confirmChange) {
-                            // Update logic inline for brevity in this snippet
                             const update = async () => {
                                 setUpdatingStatus(true);
                                 await fetch('/api/db', { method: 'PUT', body: JSON.stringify({ type: 'patients', hn: patient.hn, status: newStatus })});
@@ -200,8 +195,9 @@ export default function PatientDetailPage() {
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left Column: Personal Info & QR */}
+        {/* Left Column */}
         <div className="space-y-6">
+          {/* 1. ข้อมูลส่วนตัว */}
           <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors">
             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
                 <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700">
@@ -220,6 +216,7 @@ export default function PatientDetailPage() {
             </div>
           </div>
 
+          {/* 2. QR Code */}
           <div className="bg-[#2D2A26] dark:bg-zinc-800 p-6 text-white border-2 border-[#3D3834] dark:border-zinc-700 shadow-[6px_6px_0px_0px_#888] dark:shadow-none text-center transition-colors">
              <div className="bg-white p-4 w-fit mx-auto mb-4 border-4 border-[#D97736]">
                 <QRCodeSVG value={`https://asthsawan.vercel.app/patient/${patient.public_token}`} size={150} />
@@ -227,58 +224,60 @@ export default function PatientDetailPage() {
              <h3 className="font-bold text-lg flex items-center justify-center gap-2"><QrCode size={20}/> Patient QR Code</h3>
              <p className="text-white/60 text-sm mt-1">ให้ผู้ป่วยสแกนเพื่อดูผลการรักษา</p>
           </div>
-        </div>
 
-        {/* Right Column: Alerts & Chart & Actions */}
-        <div className="lg:col-span-2 space-y-6">
-
-            {/* 🆕 ส่วนแจ้งเตือนเทคนิคพ่นยา (Inhaler Reminder) */}
-            <div className={`p-4 border-l-4 rounded-r-md flex items-start gap-4 shadow-sm ${
+          {/* 3. 🆕 แจ้งเตือนเทคนิคพ่นยา (ย้ายมาตรงนี้ + ปรับให้เล็ก) */}
+          <div className={`p-4 border-l-4 rounded-r-md flex flex-col gap-2 shadow-sm ${
                 inhalerStatus.status === 'never' ? 'bg-red-50 border-red-500 dark:bg-red-900/20' :
                 inhalerStatus.status === 'overdue' ? 'bg-orange-50 border-orange-500 dark:bg-orange-900/20' :
                 'bg-blue-50 border-blue-500 dark:bg-blue-900/20'
             }`}>
-                <div className="shrink-0 mt-1">
-                    {inhalerStatus.status === 'ok' ? <Timer className="text-blue-500"/> : <AlertTriangle className={inhalerStatus.status === 'never' ? 'text-red-500' : 'text-orange-500'}/>}
-                </div>
-                <div>
+                <div className="flex items-center gap-2">
+                    <div className="shrink-0">
+                        {inhalerStatus.status === 'ok' ? <Timer size={18} className="text-blue-500"/> : <AlertTriangle size={18} className={inhalerStatus.status === 'never' ? 'text-red-500' : 'text-orange-500'}/>}
+                    </div>
                     <h4 className={`font-bold text-sm uppercase ${
                          inhalerStatus.status === 'never' ? 'text-red-700 dark:text-red-400' :
                          inhalerStatus.status === 'overdue' ? 'text-orange-700 dark:text-orange-400' :
                          'text-blue-700 dark:text-blue-400'
                     }`}>
-                        การทบทวนเทคนิคพ่นยา (Inhaler Technique)
+                        Inhaler Review
                     </h4>
-                    
+                </div>
+                
+                <div className="pl-6 text-xs leading-tight">
                     {inhalerStatus.status === 'never' && (
-                        <p className="text-sm text-red-600 dark:text-red-300 font-bold mt-1">
-                            ⚠️ ผู้ป่วยรายนี้ยังไม่เคยมีประวัติการสอน/ทบทวนเทคนิค
+                        <p className="text-red-600 dark:text-red-300 font-bold">
+                            ⚠️ ยังไม่เคยสอน
                         </p>
                     )}
 
                     {inhalerStatus.status === 'overdue' && (
-                        <div className="mt-1">
-                             <p className="text-sm text-orange-800 dark:text-orange-200 font-bold">
-                                ⚠️ ครบกำหนดทบทวนแล้ว (เลยมา {inhalerStatus.days} วัน)
+                        <>
+                             <p className="text-orange-800 dark:text-orange-200 font-bold">
+                                ⚠️ เลยกำหนด {inhalerStatus.days} วัน
                              </p>
-                             <p className="text-xs text-orange-600/70 dark:text-orange-400 mt-0.5">
-                                ทบทวนครั้งล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: 'numeric', month: 'long', year: '2-digit'})}
+                             <p className="text-orange-600/70 dark:text-orange-400 mt-1">
+                                ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: '2-digit', month: 'short', year: '2-digit'})}
                              </p>
-                        </div>
+                        </>
                     )}
 
                     {inhalerStatus.status === 'ok' && (
-                         <div className="mt-1">
-                             <p className="text-sm text-blue-800 dark:text-blue-200 font-bold">
-                                ✅ อีก {inhalerStatus.days} วัน จะครบกำหนดทบทวน
+                         <>
+                             <p className="text-blue-800 dark:text-blue-200 font-bold">
+                                ✅ อีก {inhalerStatus.days} วัน ครบกำหนด
                              </p>
-                             <p className="text-xs text-blue-600/70 dark:text-blue-400 mt-0.5">
-                                ทบทวนครั้งล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: 'numeric', month: 'long', year: '2-digit'})}
+                             <p className="text-blue-600/70 dark:text-blue-400 mt-1">
+                                ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: '2-digit', month: 'short', year: '2-digit'})}
                              </p>
-                        </div>
+                        </>
                     )}
                 </div>
             </div>
+        </div>
+
+        {/* Right Column */}
+        <div className="lg:col-span-2 space-y-6">
             
             {/* Chart Section */}
             <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors">
