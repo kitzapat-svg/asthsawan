@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, FileText, ChevronDown, ChevronUp, Clock, Pill,
-  AlertTriangle, Timer
+  AlertTriangle, Timer, CheckCircle
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -225,7 +225,7 @@ export default function PatientDetailPage() {
              <p className="text-white/60 text-sm mt-1">ให้ผู้ป่วยสแกนเพื่อดูผลการรักษา</p>
           </div>
 
-          {/* 3. 🆕 แจ้งเตือนเทคนิคพ่นยา (ย้ายมาตรงนี้ + ปรับให้เล็ก) */}
+          {/* 3. แจ้งเตือนเทคนิคพ่นยา (Compact Style) */}
           <div className={`p-4 border-l-4 rounded-r-md flex flex-col gap-2 shadow-sm ${
                 inhalerStatus.status === 'never' ? 'bg-red-50 border-red-500 dark:bg-red-900/20' :
                 inhalerStatus.status === 'overdue' ? 'bg-orange-50 border-orange-500 dark:bg-orange-900/20' :
