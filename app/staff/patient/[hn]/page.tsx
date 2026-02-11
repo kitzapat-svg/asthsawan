@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, FileText, ChevronDown, ChevronUp, Clock, Pill,
-  AlertTriangle, Timer, CheckCircle, Sparkles, X, History
+  AlertTriangle, Timer, CheckCircle, Sparkles, X, History, Bug
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -56,11 +56,17 @@ export default function PatientDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showTechniqueModal, setShowTechniqueModal] = useState(false);
+  
+  // Debug State: เก็บข้อมูลดิบเพื่อดูว่า API ส่งอะไรมา
+  const [debugData, setDebugData] = useState<any>(null);
 
   const mdiSteps = [
     "เขย่าหลอด", "ถือแนวตั้ง", "หายใจออกสุด", "ตั้งศีรษะตรง", 
     "อมปากสนิท", "กดพร้อมสูด", "กลั้น 10 วิ", "ผ่อนลมหายใจ"
   ];
+
+  // Helper: ตัดเลข 0 นำหน้าออก เพื่อให้เทียบ HN ได้แม่นยำ (เช่น "00123" == "123")
+  const normalizeHN = (val: any) => String(val).trim().replace(/^0+/, '');
 
   useEffect(() => {
     fetchData();
@@ -71,7 +77,8 @@ export default function PatientDetailPage() {
       // 1. Fetch Patient
       const resPatients = await fetch('/api/db?type=patients');
       const dataPatients: Patient[] = await resPatients.json();
-      const foundPatient = dataPatients.find(p => String(p.hn) === String(params.hn)); // ใช้ String() ครอบเพื่อความชัวร์
+      // ใช้ normalizeHN ในการหา
+      const foundPatient = dataPatients.find(p => normalizeHN(p.hn) === normalizeHN(params.hn));
 
       if (foundPatient) {
         setPatient(foundPatient);
@@ -84,11 +91,11 @@ export default function PatientDetailPage() {
         const resTechniques = await fetch('/api/db?type=technique_checks');
         const rawTechniqueData = await resTechniques.json();
         
-        console.log("Raw Technique Data:", rawTechniqueData); // Debug ดูข้อมูลดิบ
+        setDebugData(rawTechniqueData); // เก็บไว้ดูใน Modal ตอน Debug
 
         // Process Visits
         const history = dataVisits
-          .filter(v => String(v.hn) === String(params.hn))
+          .filter(v => normalizeHN(v.hn) === normalizeHN(params.hn))
           .map(v => ({
             ...v,
             dateDisplay: new Date(v.date).toLocaleDateString('th-TH', { 
@@ -100,10 +107,10 @@ export default function PatientDetailPage() {
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
         setVisitHistory(history);
 
-        // Process Technique Checks (Logic ที่ปรับปรุงแล้ว)
+        // Process Technique Checks (Logic ที่แข็งแกร่งขึ้น)
         if (Array.isArray(rawTechniqueData)) {
             const techHistory = rawTechniqueData
-                .filter(t => t && String(t[0]) === String(params.hn)) // กรอง HN ให้ตรง (แปลงเป็น String ก่อนเทียบ)
+                .filter(t => t && t.length > 0 && normalizeHN(t[0]) === normalizeHN(params.hn)) // เทียบแบบตัด 0
                 .map(t => ({
                     hn: t[0],
                     date: t[1],
@@ -113,7 +120,6 @@ export default function PatientDetailPage() {
                 }))
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             
-            console.log("Processed Technique History:", techHistory); // Debug ดูข้อมูลหลังแปลง
             setTechniqueHistory(techHistory);
         }
       }
@@ -177,7 +183,6 @@ export default function PatientDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 pb-20 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
-      
       <nav className="max-w-5xl mx-auto mb-8 flex items-center justify-between">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] font-bold transition-colors">
           <ArrowLeft size={20} /> กลับหน้าหลัก
@@ -425,6 +430,15 @@ export default function PatientDetailPage() {
                     <div className="text-center py-10 text-gray-400">
                         <History size={48} className="mx-auto mb-2 opacity-20"/>
                         <p>ยังไม่มีประวัติการประเมินเทคนิคพ่นยา</p>
+                        
+                        {/* ส่วน Debug: แสดงถ้าไม่มีข้อมูล เพื่อให้รู้ว่า API ส่งอะไรมา */}
+                        <div className="mt-8 p-4 bg-gray-100 dark:bg-zinc-800 rounded text-left text-xs font-mono overflow-auto max-h-40 border border-gray-300">
+                            <p className="font-bold text-red-500 mb-1 flex items-center gap-1"><Bug size={12}/> Debug Info:</p>
+                            <p>Current HN: {params.hn}</p>
+                            <p>Sheet Tab Name: "technique_checks"</p>
+                            <p>API Raw Data Length: {Array.isArray(debugData) ? debugData.length : 'Not Array'}</p>
+                            <p>First Row Example: {Array.isArray(debugData) && debugData.length > 0 ? JSON.stringify(debugData[0]) : 'None'}</p>
+                        </div>
                     </div>
                 )}
             </div>
