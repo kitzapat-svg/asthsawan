@@ -38,13 +38,12 @@ interface Visit {
   technique_check: string;
 }
 
-// Interface สำหรับข้อมูล Checklist ที่ดึงมา
 interface TechniqueCheck {
     hn: string;
     date: string;
-    steps: string[]; // เก็บเป็น array 8 ตัว ["1", "0", "1", ...]
+    steps: string[];
     total_score: string;
-    note: string; // เก็บ Note
+    note: string;
 }
 
 export default function PatientDetailPage() {
@@ -52,11 +51,11 @@ export default function PatientDetailPage() {
   const router = useRouter();
   const [patient, setPatient] = useState<Patient | null>(null);
   const [visitHistory, setVisitHistory] = useState<any[]>([]);
-  const [techniqueHistory, setTechniqueHistory] = useState<TechniqueCheck[]>([]); // State เก็บประวัติ Checklist
+  const [techniqueHistory, setTechniqueHistory] = useState<TechniqueCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showTechniqueModal, setShowTechniqueModal] = useState(false); // State เปิด/ปิด Modal
+  const [showTechniqueModal, setShowTechniqueModal] = useState(false);
 
   const mdiSteps = [
     "เขย่าหลอด", "ถือแนวตั้ง", "หายใจออกสุด", "ตั้งศีรษะตรง", 
@@ -69,23 +68,17 @@ export default function PatientDetailPage() {
 
   const fetchData = async () => {
     try {
-      // 1. Fetch Patient
       const resPatients = await fetch('/api/db?type=patients');
       const dataPatients: Patient[] = await resPatients.json();
       const foundPatient = dataPatients.find(p => p.hn === params.hn);
 
       if (foundPatient) {
         setPatient(foundPatient);
-
-        // 2. Fetch Visits
         const resVisits = await fetch('/api/db?type=visits');
         const dataVisits: Visit[] = await resVisits.json();
-        
-        // 3. Fetch Technique Checks (ดึงข้อมูลละเอียด)
         const resTechniques = await fetch('/api/db?type=technique_checks');
         const dataTechniques: any[] = await resTechniques.json();
 
-        // Process Visits
         const history = dataVisits
           .filter(v => v.hn === params.hn)
           .map(v => ({
@@ -99,17 +92,16 @@ export default function PatientDetailPage() {
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
         setVisitHistory(history);
 
-        // Process Technique Checks
         const techHistory = dataTechniques
-            .filter(t => t[0] === params.hn) // Column 0 = HN
+            .filter(t => t[0] === params.hn)
             .map(t => ({
                 hn: t[0],
                 date: t[1],
-                steps: t.slice(2, 10), // Column 2-9 คือ step 1-8
+                steps: t.slice(2, 10),
                 total_score: t[10],
-                note: t[11] || '-' // Column 11 คือ Note (ถ้าไม่มีใส่ -)
+                note: t[11] || '-'
             }))
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // เรียงใหม่ไปเก่า
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
         setTechniqueHistory(techHistory);
       }
@@ -137,7 +129,6 @@ export default function PatientDetailPage() {
 
   const inhalerStatus = getInhalerStatus();
 
-  // Helpers
   const getAge = (dob: string) => {
     if (!dob) return 0;
     const birthDate = new Date(dob);
@@ -174,7 +165,6 @@ export default function PatientDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 pb-20 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
-      
       <nav className="max-w-5xl mx-auto mb-8 flex items-center justify-between">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] font-bold transition-colors">
           <ArrowLeft size={20} /> กลับหน้าหลัก
@@ -236,62 +226,58 @@ export default function PatientDetailPage() {
              <p className="text-white/60 text-sm mt-1">ให้ผู้ป่วยสแกนเพื่อดูผลการรักษา</p>
           </div>
 
-          {/* Inhaler Review Alert Box */}
-          <div className={`
-             relative overflow-hidden p-5 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-[1.02] cursor-default border-2
-             ${inhalerStatus.status === 'never' 
-                ? 'bg-gradient-to-br from-red-50 to-pink-50 dark:from-red-900/30 dark:to-pink-900/20 border-red-200 dark:border-red-800' 
-                : inhalerStatus.status === 'overdue' 
-                ? 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/20 border-orange-200 dark:border-orange-800'
-                : 'bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/20 border-blue-200 dark:border-blue-800'}
-          `}>
-             <div className="absolute -right-4 -top-4 opacity-10 dark:opacity-5"><Sparkles size={80} strokeWidth={1} /></div>
-             <div className="relative z-10">
-                <div className="flex items-center gap-2.5 mb-2">
-                    <div className={`
-                        w-8 h-8 rounded-full flex items-center justify-center shadow-sm text-white
-                        ${inhalerStatus.status === 'never' ? 'bg-gradient-to-r from-red-400 to-pink-500' : 
-                          inhalerStatus.status === 'overdue' ? 'bg-gradient-to-r from-orange-400 to-amber-500' : 
-                          'bg-gradient-to-r from-blue-400 to-cyan-500'}
-                    `}>
-                        {inhalerStatus.status === 'ok' ? <Sparkles size={16} /> : <AlertTriangle size={16} />}
+          {/* Inhaler Review (Warm Retro Theme) */}
+          <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors">
+             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
+                <div className={`w-12 h-12 flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700 ${
+                    inhalerStatus.status === 'never' ? 'bg-red-500' :
+                    inhalerStatus.status === 'overdue' ? 'bg-[#D97736]' : // Orange
+                    'bg-green-600'
+                }`}>
+                    {inhalerStatus.status === 'ok' ? <Timer size={24}/> : <AlertTriangle size={24}/>}
+                </div>
+                <div>
+                    <h3 className="text-lg font-black text-[#2D2A26] dark:text-white">ทบทวนเทคนิคพ่นยา</h3>
+                    <p className="text-xs text-[#6B6560] dark:text-zinc-400 font-bold uppercase tracking-wider">Inhaler Technique</p>
+                </div>
+             </div>
+             
+             <div className="space-y-4">
+                 {inhalerStatus.status === 'never' && (
+                    <div className="text-center py-2">
+                        <p className="text-red-600 dark:text-red-400 font-bold text-lg">⚠️ ยังไม่เคยสอน</p>
                     </div>
-                    <h4 className={`text-xs font-black tracking-wider uppercase opacity-80 ${
-                        inhalerStatus.status === 'never' ? 'text-red-800 dark:text-red-300' :
-                        inhalerStatus.status === 'overdue' ? 'text-orange-800 dark:text-orange-300' :
-                        'text-blue-800 dark:text-blue-300'
-                    }`}>
-                        AI Assistant
-                    </h4>
-                </div>
+                )}
 
-                <div className="pl-1">
-                     <h3 className={`font-bold text-sm mb-1 ${
-                        inhalerStatus.status === 'never' ? 'text-red-900 dark:text-red-100' :
-                        inhalerStatus.status === 'overdue' ? 'text-orange-900 dark:text-orange-100' :
-                        'text-blue-900 dark:text-blue-100'
-                     }`}>
-                        ทบทวนเทคนิคพ่นยา
-                     </h3>
-                     
-                     {inhalerStatus.status === 'never' && <p className="text-xs text-red-700/80 dark:text-red-300 font-medium">⚠️ ยังไม่เคยมีประวัติการสอน</p>}
-                     {inhalerStatus.status === 'overdue' && <p className="text-xs text-orange-800 dark:text-orange-200 font-bold mb-0.5">ครบกำหนดแล้ว! (+{inhalerStatus.days} วัน)</p>}
-                     {inhalerStatus.status === 'ok' && <p className="text-xs text-blue-800 dark:text-blue-200 font-bold mb-0.5">อีก {inhalerStatus.days} วัน จะครบกำหนด</p>}
+                {inhalerStatus.status === 'overdue' && (
+                    <div>
+                         <p className="text-[#D97736] font-black text-lg">
+                            เลยกำหนด {inhalerStatus.days} วัน
+                         </p>
+                         <p className="text-sm text-[#6B6560] dark:text-zinc-500 flex items-center gap-1 mt-1 font-medium">
+                            <Clock size={14}/> ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: '2-digit', month: 'short', year: '2-digit'})}
+                         </p>
+                    </div>
+                )}
 
-                     {/* ปุ่มดูรายละเอียด */}
-                     <button 
-                        onClick={() => setShowTechniqueModal(true)}
-                        className={`mt-3 w-full py-1.5 text-xs font-bold rounded border shadow-sm flex items-center justify-center gap-1 transition-all
-                        ${inhalerStatus.status === 'never' 
-                            ? 'bg-white border-red-200 text-red-600 hover:bg-red-50 dark:bg-black/20 dark:border-red-800 dark:text-red-300' 
-                            : inhalerStatus.status === 'overdue'
-                            ? 'bg-white border-orange-200 text-orange-600 hover:bg-orange-50 dark:bg-black/20 dark:border-orange-800 dark:text-orange-300'
-                            : 'bg-white border-blue-200 text-blue-600 hover:bg-blue-50 dark:bg-black/20 dark:border-blue-800 dark:text-blue-300'}
-                        `}
-                     >
-                        <History size={12} /> ดูประวัติคะแนน
-                     </button>
-                </div>
+                {inhalerStatus.status === 'ok' && (
+                     <div>
+                         <p className="text-green-600 dark:text-green-500 font-black text-lg">
+                            เหลืออีก {inhalerStatus.days} วัน
+                         </p>
+                         <p className="text-sm text-[#6B6560] dark:text-zinc-500 flex items-center gap-1 mt-1 font-medium">
+                            <CheckCircle size={14}/> ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: '2-digit', month: 'short', year: '2-digit'})}
+                         </p>
+                    </div>
+                )}
+
+                {/* ปุ่มดูรายละเอียด (Retro Style) */}
+                <button 
+                    onClick={() => setShowTechniqueModal(true)}
+                    className="w-full py-3 bg-[#F7F3ED] dark:bg-zinc-800 text-[#2D2A26] dark:text-white font-bold border-2 border-[#3D3834] dark:border-zinc-600 shadow-[2px_2px_0px_0px_#3D3834] dark:shadow-none hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2"
+                >
+                    <History size={16} /> ดูประวัติคะแนนละเอียด
+                </button>
              </div>
           </div>
         </div>
