@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-// 1. เพิ่ม Type เพื่อให้รู้โครงสร้างข้อมูล Visit
 interface VisitData {
   hn: string;
   date: string;
@@ -17,9 +16,8 @@ export default function RecordVisitPage() {
   const params = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [fetchingHistory, setFetchingHistory] = useState(true); // สถานะการดึงประวัติเก่า
+  const [fetchingHistory, setFetchingHistory] = useState(true);
   
-  // Checklist เทคนิคการพ่นยา (MDI)
   const mdiSteps = [
     "1. เขย่าหลอดพ่นยาในแนวตั้ง 3-4 ครั้ง",
     "2. ถือหลอดพ่นยาในแนวตั้ง",
@@ -31,14 +29,13 @@ export default function RecordVisitPage() {
     "8. ผ่อนลมหายใจออกทางปากหรือจมูกช้าๆ"
   ];
 
-  // State เก็บสถานะ Checklist
   const [checklist, setChecklist] = useState<boolean[]>(new Array(8).fill(false));
 
   const [formData, setFormData] = useState({
     pefr: '',
     control_level: 'Well-controlled',
-    controller: 'Seretide', // ค่าเริ่มต้น (เดี๋ยวจะถูกทับด้วยของเก่า)
-    reliever: 'Salbutamol', // ค่าเริ่มต้น
+    controller: 'Seretide',
+    reliever: 'Salbutamol',
     adherence: '100',
     drp: '-',
     advice: '-',
@@ -48,21 +45,18 @@ export default function RecordVisitPage() {
     is_new_case: 'FALSE',
   });
 
-  // 2. useEffect: ดึงข้อมูลยาจาก Visit ล่าสุดเมื่อเปิดหน้าเว็บ
   useEffect(() => {
     const fetchLastMedication = async () => {
         try {
             const res = await fetch('/api/db?type=visits');
             const data: VisitData[] = await res.json();
             
-            // หาประวัติของ HN นี้ และเรียงวันที่ล่าสุดขึ้นก่อน
             const history = data
                 .filter(v => v.hn === params.hn)
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
             if (history.length > 0) {
                 const lastVisit = history[0];
-                // อัปเดตยาให้ตรงกับครั้งล่าสุด
                 setFormData(prev => ({
                     ...prev,
                     controller: lastVisit.controller || 'Seretide',
@@ -78,7 +72,6 @@ export default function RecordVisitPage() {
 
     fetchLastMedication();
   }, [params.hn]);
-
 
   const totalScore = checklist.filter(Boolean).length;
 
@@ -98,7 +91,6 @@ export default function RecordVisitPage() {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      
       const inhalerScore = formData.technique_check === 'ทำ' ? totalScore.toString() : '-';
 
       const visitData = [
@@ -163,10 +155,7 @@ export default function RecordVisitPage() {
     <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 pb-20 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
       
       <nav className="max-w-3xl mx-auto mb-8 flex items-center justify-between">
-        <button 
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] font-bold transition-colors"
-        >
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] font-bold transition-colors">
           <ArrowLeft size={20} /> ยกเลิก
         </button>
         <ThemeToggle />
@@ -185,7 +174,6 @@ export default function RecordVisitPage() {
 
         <form onSubmit={handleSubmit} className="space-y-8">
           
-          {/* Section 1: Clinical */}
           <div className="bg-[#F7F3ED] dark:bg-zinc-800/50 p-6 border border-[#3D3834]/20 dark:border-zinc-700 rounded-lg space-y-4">
              <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Activity size={18}/> 1. การประเมินผล (Clinical)</h3>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -210,7 +198,7 @@ export default function RecordVisitPage() {
              </div>
           </div>
 
-          {/* Section 2: Medication (Auto-filled) */}
+          {/* Section 2: Medication */}
           <div className="space-y-4 relative">
              <div className="flex items-center justify-between">
                 <h3 className="font-bold flex items-center gap-2 text-[#D97736]">
@@ -227,6 +215,8 @@ export default function RecordVisitPage() {
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาควบคุม (Controller)</label>
                     <select name="controller" value={formData.controller} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-all">
+                        {/* เพิ่มตัวเลือก - */}
+                        <option value="-">-</option>
                         <option value="Seretide">Seretide</option>
                         <option value="Budesonide">Budesonide</option>
                         <option value="Symbicort">Symbicort</option> 
@@ -236,8 +226,11 @@ export default function RecordVisitPage() {
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาบรรเทา (Reliever)</label>
                     <select name="reliever" value={formData.reliever} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-all">
+                        {/* เพิ่มตัวเลือก - */}
+                        <option value="-">-</option>
                         <option value="Salbutamol">Salbutamol</option>
                         <option value="Berodual">Berodual</option>
+                        <option value="Ventolin">Ventolin</option>
                     </select>
                 </div>
              </div>
