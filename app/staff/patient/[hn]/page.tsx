@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, FileText, ChevronDown, ChevronUp, Clock, Pill,
-  AlertTriangle, Timer, CheckCircle, Sparkles, X, List, History
+  AlertTriangle, Timer, CheckCircle, Sparkles, X, History
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -68,19 +68,27 @@ export default function PatientDetailPage() {
 
   const fetchData = async () => {
     try {
+      // 1. Fetch Patient
       const resPatients = await fetch('/api/db?type=patients');
       const dataPatients: Patient[] = await resPatients.json();
-      const foundPatient = dataPatients.find(p => p.hn === params.hn);
+      const foundPatient = dataPatients.find(p => String(p.hn) === String(params.hn)); // ใช้ String() ครอบเพื่อความชัวร์
 
       if (foundPatient) {
         setPatient(foundPatient);
+
+        // 2. Fetch Visits
         const resVisits = await fetch('/api/db?type=visits');
         const dataVisits: Visit[] = await resVisits.json();
+        
+        // 3. Fetch Technique Checks
         const resTechniques = await fetch('/api/db?type=technique_checks');
-        const dataTechniques: any[] = await resTechniques.json();
+        const rawTechniqueData = await resTechniques.json();
+        
+        console.log("Raw Technique Data:", rawTechniqueData); // Debug ดูข้อมูลดิบ
 
+        // Process Visits
         const history = dataVisits
-          .filter(v => v.hn === params.hn)
+          .filter(v => String(v.hn) === String(params.hn))
           .map(v => ({
             ...v,
             dateDisplay: new Date(v.date).toLocaleDateString('th-TH', { 
@@ -92,18 +100,22 @@ export default function PatientDetailPage() {
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
         setVisitHistory(history);
 
-        const techHistory = dataTechniques
-            .filter(t => t[0] === params.hn)
-            .map(t => ({
-                hn: t[0],
-                date: t[1],
-                steps: t.slice(2, 10),
-                total_score: t[10],
-                note: t[11] || '-'
-            }))
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        
-        setTechniqueHistory(techHistory);
+        // Process Technique Checks (Logic ที่ปรับปรุงแล้ว)
+        if (Array.isArray(rawTechniqueData)) {
+            const techHistory = rawTechniqueData
+                .filter(t => t && String(t[0]) === String(params.hn)) // กรอง HN ให้ตรง (แปลงเป็น String ก่อนเทียบ)
+                .map(t => ({
+                    hn: t[0],
+                    date: t[1],
+                    steps: t.slice(2, 10), // Column 2-9
+                    total_score: t[10],
+                    note: t[11] || '-'    // Column 11
+                }))
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            
+            console.log("Processed Technique History:", techHistory); // Debug ดูข้อมูลหลังแปลง
+            setTechniqueHistory(techHistory);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -165,6 +177,7 @@ export default function PatientDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 pb-20 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
+      
       <nav className="max-w-5xl mx-auto mb-8 flex items-center justify-between">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] font-bold transition-colors">
           <ArrowLeft size={20} /> กลับหน้าหลัก
