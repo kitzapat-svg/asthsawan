@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, FileText, ChevronDown, ChevronUp, Clock, Pill,
-  AlertTriangle, Timer, CheckCircle
+  AlertTriangle, Timer, CheckCircle, Sparkles // <--- เพิ่ม Sparkles (ไอคอนวิ้งๆ)
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -225,55 +225,78 @@ export default function PatientDetailPage() {
              <p className="text-white/60 text-sm mt-1">ให้ผู้ป่วยสแกนเพื่อดูผลการรักษา</p>
           </div>
 
-          {/* 3. แจ้งเตือนเทคนิคพ่นยา (Compact Style) */}
-          <div className={`p-4 border-l-4 rounded-r-md flex flex-col gap-2 shadow-sm ${
-                inhalerStatus.status === 'never' ? 'bg-red-50 border-red-500 dark:bg-red-900/20' :
-                inhalerStatus.status === 'overdue' ? 'bg-orange-50 border-orange-500 dark:bg-orange-900/20' :
-                'bg-blue-50 border-blue-500 dark:bg-blue-900/20'
-            }`}>
-                <div className="flex items-center gap-2">
-                    <div className="shrink-0">
-                        {inhalerStatus.status === 'ok' ? <Timer size={18} className="text-blue-500"/> : <AlertTriangle size={18} className={inhalerStatus.status === 'never' ? 'text-red-500' : 'text-orange-500'}/>}
+          {/* 3. ✨ Kimi Theme Inhaler Reminder ✨ */}
+          <div className={`
+             relative overflow-hidden p-5 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-[1.02] cursor-default border-2
+             ${inhalerStatus.status === 'never' 
+                ? 'bg-gradient-to-br from-red-50 to-pink-50 dark:from-red-900/30 dark:to-pink-900/20 border-red-200 dark:border-red-800' 
+                : inhalerStatus.status === 'overdue' 
+                ? 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/20 border-orange-200 dark:border-orange-800'
+                : 'bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/20 border-blue-200 dark:border-blue-800'}
+          `}>
+             {/* Background Decoration */}
+             <div className="absolute -right-4 -top-4 opacity-10 dark:opacity-5">
+                <Sparkles size={80} strokeWidth={1} />
+             </div>
+
+             <div className="relative z-10">
+                <div className="flex items-center gap-2.5 mb-2">
+                    <div className={`
+                        w-8 h-8 rounded-full flex items-center justify-center shadow-sm text-white
+                        ${inhalerStatus.status === 'never' ? 'bg-gradient-to-r from-red-400 to-pink-500' : 
+                          inhalerStatus.status === 'overdue' ? 'bg-gradient-to-r from-orange-400 to-amber-500' : 
+                          'bg-gradient-to-r from-blue-400 to-cyan-500'}
+                    `}>
+                        {inhalerStatus.status === 'ok' ? <Sparkles size={16} /> : <AlertTriangle size={16} />}
                     </div>
-                    <h4 className={`font-bold text-sm uppercase ${
-                         inhalerStatus.status === 'never' ? 'text-red-700 dark:text-red-400' :
-                         inhalerStatus.status === 'overdue' ? 'text-orange-700 dark:text-orange-400' :
-                         'text-blue-700 dark:text-blue-400'
+                    <h4 className={`text-xs font-black tracking-wider uppercase opacity-80 ${
+                        inhalerStatus.status === 'never' ? 'text-red-800 dark:text-red-300' :
+                        inhalerStatus.status === 'overdue' ? 'text-orange-800 dark:text-orange-300' :
+                        'text-blue-800 dark:text-blue-300'
                     }`}>
-                        Inhaler Review
+                        AI Assistant
                     </h4>
                 </div>
-                
-                <div className="pl-6 text-xs leading-tight">
-                    {inhalerStatus.status === 'never' && (
-                        <p className="text-red-600 dark:text-red-300 font-bold">
-                            ⚠️ ยังไม่เคยสอน
+
+                <div className="pl-1">
+                     <h3 className={`font-bold text-sm mb-1 ${
+                        inhalerStatus.status === 'never' ? 'text-red-900 dark:text-red-100' :
+                        inhalerStatus.status === 'overdue' ? 'text-orange-900 dark:text-orange-100' :
+                        'text-blue-900 dark:text-blue-100'
+                     }`}>
+                        ทบทวนเทคนิคพ่นยา
+                     </h3>
+
+                     {inhalerStatus.status === 'never' && (
+                        <p className="text-xs text-red-700/80 dark:text-red-300 font-medium">
+                            ⚠️ ยังไม่เคยมีประวัติการสอน
                         </p>
                     )}
 
                     {inhalerStatus.status === 'overdue' && (
-                        <>
-                             <p className="text-orange-800 dark:text-orange-200 font-bold">
-                                ⚠️ เลยกำหนด {inhalerStatus.days} วัน
+                        <div>
+                             <p className="text-xs text-orange-800 dark:text-orange-200 font-bold mb-0.5">
+                                ครบกำหนดแล้ว! (+{inhalerStatus.days} วัน)
                              </p>
-                             <p className="text-orange-600/70 dark:text-orange-400 mt-1">
-                                ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: '2-digit', month: 'short', year: '2-digit'})}
-                             </p>
-                        </>
+                             <div className="flex items-center gap-1 text-[10px] text-orange-600/70 dark:text-orange-400/70 font-mono bg-white/50 dark:bg-black/20 w-fit px-1.5 py-0.5 rounded">
+                                <Clock size={10}/> ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: 'numeric', month: 'short', year: '2-digit'})}
+                             </div>
+                        </div>
                     )}
 
                     {inhalerStatus.status === 'ok' && (
-                         <>
-                             <p className="text-blue-800 dark:text-blue-200 font-bold">
-                                ✅ อีก {inhalerStatus.days} วัน ครบกำหนด
+                         <div>
+                             <p className="text-xs text-blue-800 dark:text-blue-200 font-bold mb-0.5">
+                                อีก {inhalerStatus.days} วัน จะครบกำหนด
                              </p>
-                             <p className="text-blue-600/70 dark:text-blue-400 mt-1">
-                                ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: '2-digit', month: 'short', year: '2-digit'})}
-                             </p>
-                        </>
+                             <div className="flex items-center gap-1 text-[10px] text-blue-600/70 dark:text-blue-400/70 font-mono bg-white/50 dark:bg-black/20 w-fit px-1.5 py-0.5 rounded">
+                                <CheckCircle size={10}/> ล่าสุด: {inhalerStatus.lastDate?.toLocaleDateString('th-TH', {day: 'numeric', month: 'short', year: '2-digit'})}
+                             </div>
+                        </div>
                     )}
                 </div>
-            </div>
+             </div>
+          </div>
         </div>
 
         {/* Right Column */}
