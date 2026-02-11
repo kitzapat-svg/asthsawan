@@ -40,6 +40,7 @@ export default function RecordVisitPage() {
     drp: '-',
     advice: '-',
     technique_check: 'ไม่',
+    technique_note: '-', // <--- เพิ่ม state เก็บ Note ของเทคนิค
     next_appt: '',
     note: '-',
     is_new_case: 'FALSE',
@@ -50,7 +51,6 @@ export default function RecordVisitPage() {
         try {
             const res = await fetch('/api/db?type=visits');
             const data: VisitData[] = await res.json();
-            
             const history = data
                 .filter(v => v.hn === params.hn)
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -69,7 +69,6 @@ export default function RecordVisitPage() {
             setFetchingHistory(false);
         }
     };
-
     fetchLastMedication();
   }, [params.hn]);
 
@@ -110,11 +109,13 @@ export default function RecordVisitPage() {
         inhalerScore
       ];
 
+      // เพิ่ม technique_note ลงไปท้ายสุด
       const checklistData = [
         params.hn,
         today,
         ...checklist.map(checked => checked ? "1" : "0"),
-        totalScore.toString()
+        totalScore.toString(),
+        formData.technique_note // <--- ส่ง Note ไปบันทึก
       ];
 
       const promises = [
@@ -138,7 +139,7 @@ export default function RecordVisitPage() {
       const [resVisit] = await Promise.all(promises);
 
       if (resVisit.ok) {
-        alert("บันทึกผลการรักษาเรียบร้อย!");
+        alert("บันทึกเรียบร้อย!");
         router.push(`/staff/patient/${params.hn}`);
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึก");
@@ -153,7 +154,6 @@ export default function RecordVisitPage() {
 
   return (
     <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 pb-20 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
-      
       <nav className="max-w-3xl mx-auto mb-8 flex items-center justify-between">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] font-bold transition-colors">
           <ArrowLeft size={20} /> ยกเลิก
@@ -173,7 +173,6 @@ export default function RecordVisitPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          
           <div className="bg-[#F7F3ED] dark:bg-zinc-800/50 p-6 border border-[#3D3834]/20 dark:border-zinc-700 rounded-lg space-y-4">
              <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Activity size={18}/> 1. การประเมินผล (Clinical)</h3>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -198,24 +197,15 @@ export default function RecordVisitPage() {
              </div>
           </div>
 
-          {/* Section 2: Medication */}
           <div className="space-y-4 relative">
              <div className="flex items-center justify-between">
-                <h3 className="font-bold flex items-center gap-2 text-[#D97736]">
-                    <Stethoscope size={18}/> 2. การใช้ยา (Medication)
-                </h3>
-                {fetchingHistory && (
-                    <span className="text-xs text-gray-400 flex items-center gap-1 animate-pulse">
-                        <RefreshCw size={12} className="animate-spin"/> กำลังดึงข้อมูลยาเดิม...
-                    </span>
-                )}
+                <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Stethoscope size={18}/> 2. การใช้ยา (Medication)</h3>
+                {fetchingHistory && <span className="text-xs text-gray-400 flex items-center gap-1 animate-pulse"><RefreshCw size={12} className="animate-spin"/> กำลังดึงข้อมูลยาเดิม...</span>}
              </div>
-
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาควบคุม (Controller)</label>
                     <select name="controller" value={formData.controller} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-all">
-                        {/* เพิ่มตัวเลือก - */}
                         <option value="-">-</option>
                         <option value="Seretide">Seretide</option>
                         <option value="Budesonide">Budesonide</option>
@@ -226,7 +216,6 @@ export default function RecordVisitPage() {
                 <div>
                     <label className="block text-sm font-bold mb-2">ยาบรรเทา (Reliever)</label>
                     <select name="reliever" value={formData.reliever} onChange={handleChange} className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white transition-all">
-                        {/* เพิ่มตัวเลือก - */}
                         <option value="-">-</option>
                         <option value="Salbutamol">Salbutamol</option>
                         <option value="Berodual">Berodual</option>
@@ -246,7 +235,6 @@ export default function RecordVisitPage() {
              </div>
           </div>
 
-          {/* Section 3: Inhaler Technique */}
           <div className="space-y-4 border-t border-gray-200 dark:border-zinc-800 pt-6">
              <div className="flex justify-between items-center">
                  <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><ClipboardList size={18}/> 3. เทคนิคพ่นยา MDI</h3>
@@ -269,7 +257,21 @@ export default function RecordVisitPage() {
                             </span>
                         </label>
                     ))}
-                    <div className="mt-4 pt-3 border-t border-dashed border-gray-300 dark:border-zinc-700 flex justify-between items-center">
+                    
+                    {/* เพิ่มช่อง Note สำหรับเทคนิคพ่นยา */}
+                    <div className="pt-2">
+                        <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-zinc-300">รายละเอียดเพิ่มเติม/ปัญหาที่พบ (Technique Note)</label>
+                        <textarea 
+                            name="technique_note" 
+                            rows={2} 
+                            value={formData.technique_note} 
+                            onChange={handleChange}
+                            placeholder="ระบุจุดที่ทำผิด หรือสิ่งที่สอนเพิ่มเติม..."
+                            className="w-full px-4 py-2 bg-gray-50 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 outline-none resize-none dark:text-white rounded focus:border-[#D97736]"
+                        />
+                    </div>
+
+                    <div className="mt-2 pt-3 border-t border-dashed border-gray-300 dark:border-zinc-700 flex justify-between items-center">
                         <span className="text-sm font-bold text-gray-500">ผลการประเมินรวม</span>
                         <div className={`text-lg font-black px-4 py-1 rounded border-2 ${totalScore >= 7 ? 'bg-green-50 text-green-600 border-green-200' : totalScore >= 4 ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                             {totalScore} / 8 คะแนน
@@ -277,13 +279,10 @@ export default function RecordVisitPage() {
                     </div>
                  </div>
              ) : (
-                <div className="text-sm text-gray-400 italic pl-6">
-                    * เลือก "ประเมิน" เพื่อเปิดแบบฟอร์มตรวจสอบเทคนิค
-                </div>
+                <div className="text-sm text-gray-400 italic pl-6">* เลือก "ประเมิน" เพื่อเปิดแบบฟอร์มตรวจสอบเทคนิค</div>
              )}
           </div>
 
-          {/* Section 4: Plan */}
           <div className="bg-[#FFF9F0] dark:bg-orange-900/10 p-6 border border-[#D97736]/30 rounded-lg space-y-4">
              <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><FileText size={18}/> 4. แผนการรักษา (Plan)</h3>
              <div>
