@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   ArrowLeft, Activity, Calendar, User, 
   Ruler, QrCode, FileText, ChevronDown, ChevronUp, Clock, Pill,
-  AlertTriangle, Timer, CheckCircle, Sparkles, X, History, Bug
+  AlertTriangle, Timer, CheckCircle, Sparkles, X, History
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -56,16 +56,13 @@ export default function PatientDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showTechniqueModal, setShowTechniqueModal] = useState(false);
-  
-  // Debug State: เก็บข้อมูลดิบเพื่อดูว่า API ส่งอะไรมา
-  const [debugData, setDebugData] = useState<any>(null);
 
   const mdiSteps = [
     "เขย่าหลอด", "ถือแนวตั้ง", "หายใจออกสุด", "ตั้งศีรษะตรง", 
     "อมปากสนิท", "กดพร้อมสูด", "กลั้น 10 วิ", "ผ่อนลมหายใจ"
   ];
 
-  // Helper: ตัดเลข 0 นำหน้าออก เพื่อให้เทียบ HN ได้แม่นยำ (เช่น "00123" == "123")
+  // Helper: ตัดเลข 0 นำหน้าออก
   const normalizeHN = (val: any) => String(val).trim().replace(/^0+/, '');
 
   useEffect(() => {
@@ -77,7 +74,6 @@ export default function PatientDetailPage() {
       // 1. Fetch Patient
       const resPatients = await fetch('/api/db?type=patients');
       const dataPatients: Patient[] = await resPatients.json();
-      // ใช้ normalizeHN ในการหา
       const foundPatient = dataPatients.find(p => normalizeHN(p.hn) === normalizeHN(params.hn));
 
       if (foundPatient) {
@@ -90,8 +86,6 @@ export default function PatientDetailPage() {
         // 3. Fetch Technique Checks
         const resTechniques = await fetch('/api/db?type=technique_checks');
         const rawTechniqueData = await resTechniques.json();
-        
-        setDebugData(rawTechniqueData); // เก็บไว้ดูใน Modal ตอน Debug
 
         // Process Visits
         const history = dataVisits
@@ -107,16 +101,21 @@ export default function PatientDetailPage() {
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
         setVisitHistory(history);
 
-        // Process Technique Checks (Logic ที่แข็งแกร่งขึ้น)
+        // Process Technique Checks (แก้ไขตรงนี้ครับ!)
         if (Array.isArray(rawTechniqueData)) {
             const techHistory = rawTechniqueData
-                .filter(t => t && t.length > 0 && normalizeHN(t[0]) === normalizeHN(params.hn)) // เทียบแบบตัด 0
-                .map(t => ({
-                    hn: t[0],
-                    date: t[1],
-                    steps: t.slice(2, 10), // Column 2-9
-                    total_score: t[10],
-                    note: t[11] || '-'    // Column 11
+                // เปลี่ยนจาก t[0] เป็น t.hn ตาม Debug Info
+                .filter((t: any) => normalizeHN(t.hn) === normalizeHN(params.hn)) 
+                .map((t: any) => ({
+                    hn: t.hn,
+                    date: t.date,
+                    // สร้าง Array steps จาก field step_1 ถึง step_8
+                    steps: [
+                        t.step_1, t.step_2, t.step_3, t.step_4, 
+                        t.step_5, t.step_6, t.step_7, t.step_8
+                    ],
+                    total_score: t.total_score,
+                    note: t.note || '-'
                 }))
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             
@@ -244,7 +243,7 @@ export default function PatientDetailPage() {
              <p className="text-white/60 text-sm mt-1">ให้ผู้ป่วยสแกนเพื่อดูผลการรักษา</p>
           </div>
 
-          {/* Inhaler Review (Warm Retro Theme) */}
+          {/* Inhaler Review Box */}
           <div className="bg-white dark:bg-zinc-900 p-6 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[6px_6px_0px_0px_#3D3834] dark:shadow-none transition-colors">
              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-100 dark:border-zinc-800">
                 <div className={`w-12 h-12 flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700 ${
@@ -289,7 +288,7 @@ export default function PatientDetailPage() {
                     </div>
                 )}
 
-                {/* ปุ่มดูรายละเอียด (Retro Style) */}
+                {/* ปุ่มดูรายละเอียด */}
                 <button 
                     onClick={() => setShowTechniqueModal(true)}
                     className="w-full py-3 bg-[#F7F3ED] dark:bg-zinc-800 text-[#2D2A26] dark:text-white font-bold border-2 border-[#3D3834] dark:border-zinc-600 shadow-[2px_2px_0px_0px_#3D3834] dark:shadow-none hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2"
@@ -399,7 +398,7 @@ export default function PatientDetailPage() {
                                     </div>
                                 </div>
 
-                                {/* รายการที่ผิด (ไม่ได้ติ๊ก) */}
+                                {/* รายการที่ผิด */}
                                 <div className="mb-3">
                                     <p className="text-xs font-bold text-gray-500 uppercase mb-2">จุดที่ทำไม่ได้ / ต้องปรับปรุง:</p>
                                     <div className="flex flex-wrap gap-2">
@@ -430,15 +429,6 @@ export default function PatientDetailPage() {
                     <div className="text-center py-10 text-gray-400">
                         <History size={48} className="mx-auto mb-2 opacity-20"/>
                         <p>ยังไม่มีประวัติการประเมินเทคนิคพ่นยา</p>
-                        
-                        {/* ส่วน Debug: แสดงถ้าไม่มีข้อมูล เพื่อให้รู้ว่า API ส่งอะไรมา */}
-                        <div className="mt-8 p-4 bg-gray-100 dark:bg-zinc-800 rounded text-left text-xs font-mono overflow-auto max-h-40 border border-gray-300">
-                            <p className="font-bold text-red-500 mb-1 flex items-center gap-1"><Bug size={12}/> Debug Info:</p>
-                            <p>Current HN: {params.hn}</p>
-                            <p>Sheet Tab Name: "technique_checks"</p>
-                            <p>API Raw Data Length: {Array.isArray(debugData) ? debugData.length : 'Not Array'}</p>
-                            <p>First Row Example: {Array.isArray(debugData) && debugData.length > 0 ? JSON.stringify(debugData[0]) : 'None'}</p>
-                        </div>
                     </div>
                 )}
             </div>
