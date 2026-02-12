@@ -12,7 +12,7 @@ const handler = NextAuth({
       async authorize(credentials) {
         // ... (โค้ดตรวจสอบรหัสผ่านเดิมของคุณ)
         const password = credentials?.password;
-        if (password === process.env.ADMIN_PASSWORD || password === "1234") { // รหัสสมมติ
+        if (password === process.env.ADMIN_PASSWORD
           return { id: "1", name: "Staff Admin", email: "staff@hospital.com" };
         }
         return null;
