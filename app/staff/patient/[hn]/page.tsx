@@ -85,7 +85,6 @@ export default function PatientDetailPage() {
         // Prepare edit form data
         setEditFormData({
             ...foundPatient,
-            // คำนวณอายุเก็บไว้แสดงผล แต่ไม่เซฟลง db
         });
 
         const resVisits = await fetch(`/api/db?type=visits&hn=${params.hn}`);
@@ -534,7 +533,7 @@ export default function PatientDetailPage() {
                             >
                                 <option value="นาย">นาย</option>
                                 <option value="นาง">นาง</option>
-                                <option value="นางสาว">นางสาว</option>
+                                <option value="น.ส.">น.ส.</option> {/* แก้ไขตรงนี้ */}
                                 <option value="ด.ช.">ด.ช.</option>
                                 <option value="ด.ญ.">ด.ญ.</option>
                             </select>
