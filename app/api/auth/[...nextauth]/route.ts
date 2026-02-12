@@ -1,7 +1,6 @@
-import NextAuth, { AuthOptions } from "next-auth";
+import NextAuth, { AuthOptions } from "next-auth"; // เพิ่ม AuthOptions
 import CredentialsProvider from "next-auth/providers/credentials";
 
-// 1. ต้อง export authOptions ออกมา เพื่อให้ api/db เรียกใช้เช็คสิทธิ์ได้
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -12,7 +11,6 @@ export const authOptions: AuthOptions = {
       async authorize(credentials) {
         const password = credentials?.password;
         
-        // --- แก้ไข: ใส่วงเล็บปิด ) ให้ครบถ้วน ---
         if (password === process.env.ADMIN_PASSWORD) {
           return { id: "1", name: "Staff Admin", email: "staff@hospital.com" };
         }
@@ -25,7 +23,7 @@ export const authOptions: AuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 ชั่วโมง
+    maxAge: 8 * 60 * 60,
   },
   jwt: {
     maxAge: 8 * 60 * 60,
