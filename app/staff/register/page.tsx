@@ -19,12 +19,11 @@ export default function RegisterPatientPage() {
     status: 'Active',
   });
 
-  // ฟังก์ชันสร้าง Token แบบ UUID v4 (ปลอดภัยสูง)
+  // ฟังก์ชันสร้าง Token แบบ UUID v4
   const generateToken = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
     }
-    // Fallback (กรณี Browser เก่ามาก)
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -41,11 +40,9 @@ export default function RegisterPatientPage() {
     setLoading(true);
 
     try {
-      // 1. จัดรูปแบบ HN ให้ครบ 7 หลัก
       const rawHN = formData.hn.trim();
       const formattedHN = rawHN.padStart(7, '0');
 
-      // 2. เช็ค HN ซ้ำ
       const checkRes = await fetch(`/api/db?type=patients&hn=${formattedHN}`);
       const existingPatients = await checkRes.json();
 
@@ -55,10 +52,8 @@ export default function RegisterPatientPage() {
         return;
       }
 
-      // 3. สร้าง Token แบบ UUID
       const public_token = generateToken();
       
-      // คำนวณ Best PEFR
       const age = new Date().getFullYear() - new Date(formData.dob).getFullYear();
       let predicted_pefr = 0;
       const h = parseFloat(formData.height);
@@ -70,18 +65,17 @@ export default function RegisterPatientPage() {
       }
       predicted_pefr = Math.max(0, Math.round(predicted_pefr));
 
-      // เตรียมข้อมูลลงตาราง
       const patientData = [
-        formattedHN,               // 0: HN
-        formData.prefix,           // 1: Prefix
-        formData.first_name.trim(),// 2: First Name
-        formData.last_name.trim(), // 3: Last Name
-        formData.dob,              // 4: DOB
-        predicted_pefr.toString(), // 5: Predicted PEFR
-        formData.height,           // 6: Height
-        formData.status,           // 7: Status
-        public_token,              // 8: Token (UUID)
-        formData.phone.trim()      // 9: Phone
+        formattedHN,               
+        formData.prefix,           
+        formData.first_name.trim(),
+        formData.last_name.trim(), 
+        formData.dob,              
+        predicted_pefr.toString(), 
+        formData.height,           
+        formData.status,           
+        public_token,              
+        formData.phone.trim()      
       ];
 
       const res = await fetch('/api/db', {
@@ -91,7 +85,7 @@ export default function RegisterPatientPage() {
       });
 
       if (res.ok) {
-        alert(`✅ ลงทะเบียนสำเร็จ!\nHN: ${formattedHN}\nToken: ${public_token}`); // แสดง Token ให้เห็นตอน Alert เพื่อความมั่นใจ (optional)
+        alert(`✅ ลงทะเบียนสำเร็จ!\nHN: ${formattedHN}`);
         router.push('/staff/dashboard');
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึก");
@@ -153,7 +147,7 @@ export default function RegisterPatientPage() {
                 <select name="prefix" value={formData.prefix} onChange={handleChange} className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none font-bold dark:text-white">
                     <option value="นาย">นาย</option>
                     <option value="นาง">นาง</option>
-                    <option value="นางสาว">นางสาว</option>
+                    <option value="น.ส.">น.ส.</option> {/* แก้ไขตรงนี้ */}
                     <option value="ด.ช.">ด.ช.</option>
                     <option value="ด.ญ.">ด.ญ.</option>
                 </select>
