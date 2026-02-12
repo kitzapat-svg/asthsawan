@@ -3,28 +3,21 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, UserPlus, AlertCircle } from 'lucide-react';
-import { ThemeToggle } from '@/components/theme-toggle'; // <--- เรียกใช้ปุ่มปรับธีม
+import { ThemeToggle } from '@/components/theme-toggle';
 
-export default function RegisterPage() {
+export default function RegisterPatientPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  
-  // เก็บค่าต่างๆ ของฟอร์ม
   const [formData, setFormData] = useState({
     hn: '',
-    prefix: 'นาย', 
-    firstName: '',
-    lastName: '',
-    dob: '',        // วันเกิด
-    bestPefr: '',   // ค่า Best PEFR
-    height: '',   
-    status: 'Active'
+    prefix: 'นาย',
+    first_name: '',
+    last_name: '',
+    dob: '',
+    height: '',
+    phone: '', // เพิ่มช่องเบอร์โทร
+    status: 'Active',
   });
-
-  // ฟังก์ชันสร้าง Token สุ่ม
-  const generateToken = () => {
-    return Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -35,36 +28,58 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const formattedHN = formData.hn.padStart(7, '0');
-      const token = generateToken();
+      // 1. 🛡️ Check for Duplicate HN (เช็ค HN ซ้ำ)
+      const checkRes = await fetch(`/api/db?type=patients&hn=${formData.hn.trim()}`);
+      const existingPatients = await checkRes.json();
 
-      const dataRow = [
-        formattedHN,        
-        formData.prefix,    
-        formData.firstName,      
-        formData.lastName,
+      if (Array.isArray(existingPatients) && existingPatients.length > 0) {
+        alert(`❌ HN: ${formData.hn} มีอยู่ในระบบแล้ว! กรุณาตรวจสอบอีกครั้ง`);
+        setLoading(false); // หยุดโหลด
+        return; // หยุดการทำงานทันที
+      }
+
+      // 2. ✅ ถ้าไม่ซ้ำ ให้บันทึกข้อมูล (Proceed to Save)
+      const public_token = Math.random().toString(36).substring(2, 15);
+      
+      // คำนวณ Best PEFR อัตโนมัติ (Predicted)
+      const age = new Date().getFullYear() - new Date(formData.dob).getFullYear();
+      let predicted_pefr = 0;
+      const h = parseFloat(formData.height);
+      
+      if (['นาย', 'ด.ช.'].includes(formData.prefix)) {
+         predicted_pefr = (5.48 * h) - (1.51 * age) - 279.7;
+      } else {
+         predicted_pefr = (3.72 * h) - (2.24 * age) - 96.6;
+      }
+      predicted_pefr = Math.max(0, Math.round(predicted_pefr));
+
+      // เตรียมข้อมูลลงตาราง (เรียงตาม Google Sheets)
+      const patientData = [
+        formData.hn.trim(),
+        formData.prefix,
+        formData.first_name.trim(),
+        formData.last_name.trim(),
         formData.dob,
-        formData.bestPefr,
-        formData.height,
+        predicted_pefr.toString(), // <--- Index 5: Predicted PEFR
+        formData.height,           // <--- Index 6: Height
         formData.status,
-        token               
+        public_token,
+        formData.phone.trim()      // <--- Index 9: Phone
       ];
 
       const res = await fetch('/api/db', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'patients',
-          data: dataRow
-        })
+        body: JSON.stringify({ type: 'patients', data: patientData })
       });
 
       if (res.ok) {
-        alert(`บันทึกสำเร็จ!\nHN: ${formattedHN}\nระบบได้สร้าง Token เรียบร้อยแล้ว`);
+        alert("✅ ลงทะเบียนผู้ป่วยสำเร็จ!");
         router.push('/staff/dashboard');
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึก");
       }
+
     } catch (error) {
       console.error(error);
       alert("เชื่อมต่อ Server ไม่ได้");
@@ -74,57 +89,49 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 pb-20 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
+    <div className="min-h-screen bg-[#FEFCF8] dark:bg-black p-6 font-sans text-[#2D2A26] dark:text-white transition-colors duration-300">
       
-      {/* Navbar */}
       <nav className="max-w-2xl mx-auto mb-8 flex items-center justify-between">
         <button 
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] dark:hover:text-[#D97736] font-bold transition-colors"
+          className="flex items-center gap-2 text-[#6B6560] dark:text-zinc-400 hover:text-[#D97736] font-bold transition-colors"
         >
-          <ArrowLeft size={20} /> ย้อนกลับ
+          <ArrowLeft size={20} /> ยกเลิก
         </button>
-        
-        <div className="flex items-center gap-4">
-            <h1 className="text-xl font-black tracking-tight flex items-center gap-2">
-            <UserPlus size={24} className="text-[#D97736]" /> <span className="hidden sm:inline">ลงทะเบียนผู้ป่วยใหม่</span>
-            </h1>
-            
-            {/* ปุ่มเปลี่ยนธีม */}
-            <ThemeToggle />
-        </div>
+        <ThemeToggle />
       </nav>
 
-      {/* Main Form Card */}
       <div className="max-w-2xl mx-auto bg-white dark:bg-zinc-900 border-2 border-[#3D3834] dark:border-zinc-800 shadow-[8px_8px_0px_0px_#3D3834] dark:shadow-none p-8 transition-colors">
-        
-        {/* Alert Info */}
-        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4 flex gap-3 text-sm text-blue-800 dark:text-blue-300 rounded">
-           <AlertCircle size={20} className="shrink-0" />
-           <p>กรุณากรอกข้อมูลให้ครบถ้วน HN จะถูกเติม 0 ให้ครบ 7 หลักอัตโนมัติ</p>
+        <div className="flex items-center gap-3 mb-8 pb-4 border-b border-gray-100 dark:border-zinc-800">
+           <div className="w-12 h-12 bg-[#D97736] flex items-center justify-center text-white border-2 border-[#3D3834] dark:border-zinc-700">
+              <UserPlus size={24} />
+           </div>
+           <div>
+              <h1 className="text-2xl font-black">ลงทะเบียนผู้ป่วยใหม่</h1>
+              <p className="text-[#6B6560] dark:text-zinc-400 font-medium">กรอกข้อมูลให้ครบถ้วน</p>
+           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* HN Row */}
+          
           <div>
-              <label className="block text-sm font-bold mb-2 dark:text-zinc-300">รหัส HN <span className="text-red-500">*</span></label>
-              <input 
-                name="hn" required
-                value={formData.hn} onChange={handleChange}
-                type="text" placeholder="เช่น 2154" 
-                className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-bold font-mono tracking-wider text-lg dark:text-white transition-colors"
-              />
+            <label className="block text-sm font-bold mb-2">HN (Hospital Number) <span className="text-red-500">*</span></label>
+            <input 
+                type="text" 
+                name="hn" 
+                required 
+                className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] outline-none font-bold text-lg dark:text-white placeholder:font-normal"
+                placeholder="Ex. 6600123"
+                value={formData.hn}
+                onChange={handleChange}
+            />
+            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><AlertCircle size={12}/> ระบบจะตรวจสอบ HN ซ้ำให้อัตโนมัติก่อนบันทึก</p>
           </div>
 
-          {/* Prefix, First Name, Last Name */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-1">
-                <label className="block text-sm font-bold mb-2 dark:text-zinc-300">คำนำหน้า</label>
-                <select 
-                    name="prefix"
-                    value={formData.prefix} onChange={handleChange}
-                    className="w-full px-2 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-bold cursor-pointer dark:text-white transition-colors"
-                >
+          <div className="grid grid-cols-4 gap-4">
+            <div className="col-span-1">
+                <label className="block text-sm font-bold mb-2">คำนำหน้า</label>
+                <select name="prefix" value={formData.prefix} onChange={handleChange} className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none font-bold dark:text-white">
                     <option value="นาย">นาย</option>
                     <option value="นาง">นาง</option>
                     <option value="นางสาว">นางสาว</option>
@@ -132,85 +139,38 @@ export default function RegisterPage() {
                     <option value="ด.ญ.">ด.ญ.</option>
                 </select>
             </div>
-            <div className="md:col-span-3 grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-bold mb-2 dark:text-zinc-300">ชื่อจริง <span className="text-red-500">*</span></label>
-                    <input 
-                        name="firstName" required
-                        value={formData.firstName} onChange={handleChange}
-                        type="text" placeholder="ชื่อ" 
-                        className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-medium dark:text-white transition-colors"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-bold mb-2 dark:text-zinc-300">นามสกุล <span className="text-red-500">*</span></label>
-                    <input 
-                        name="lastName" required
-                        value={formData.lastName} onChange={handleChange}
-                        type="text" placeholder="นามสกุล" 
-                        className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-medium dark:text-white transition-colors"
-                    />
+            <div className="col-span-3">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-bold mb-2">ชื่อ</label>
+                        <input type="text" name="first_name" required className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white" value={formData.first_name} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold mb-2">นามสกุล</label>
+                        <input type="text" name="last_name" required className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white" value={formData.last_name} onChange={handleChange} />
+                    </div>
                 </div>
             </div>
           </div>
 
-          {/* DOB & Height & Best PEFR */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-bold mb-2 dark:text-zinc-300">วันเดือนปีเกิด <span className="text-red-500">*</span></label>
-              <input 
-                name="dob" required
-                value={formData.dob} onChange={handleChange}
-                type="date"
-                className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-bold dark:text-white transition-colors"
-              />
+                <label className="block text-sm font-bold mb-2">วันเกิด (DOB)</label>
+                <input type="date" name="dob" required className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none font-bold dark:text-white" value={formData.dob} onChange={handleChange} />
             </div>
             <div>
-              <label className="block text-sm font-bold mb-2 text-[#D97736]">ส่วนสูง (cm)</label>
-              <input 
-                name="height" required
-                value={formData.height} onChange={handleChange}
-                type="number" placeholder="จำเป็น" 
-                className="w-full px-4 py-3 bg-[#FFF3E0] dark:bg-orange-900/20 border-2 border-[#D97736] focus:border-[#D97736] outline-none font-bold text-center placeholder:text-[#D97736]/50 dark:text-white transition-colors"
-              />
-            </div>
-             <div>
-              <label className="block text-sm font-bold mb-2 dark:text-zinc-300">Best PEFR</label>
-              <input 
-                name="bestPefr"
-                value={formData.bestPefr} onChange={handleChange}
-                type="number" placeholder="ค่าที่ดีที่สุด" 
-                className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-bold text-center dark:text-white transition-colors"
-              />
+                <label className="block text-sm font-bold mb-2">ส่วนสูง (cm)</label>
+                <input type="number" name="height" required className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none font-bold dark:text-white" value={formData.height} onChange={handleChange} placeholder="165" />
             </div>
           </div>
 
-          {/* Status */}
           <div>
-              <label className="block text-sm font-bold mb-2 dark:text-zinc-300">สถานะผู้ป่วย</label>
-              <select 
-                name="status"
-                value={formData.status} onChange={handleChange}
-                className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] dark:focus:border-[#D97736] outline-none font-bold appearance-none cursor-pointer dark:text-white transition-colors"
-              >
-                <option value="Active">🟢 Active (กำลังรักษา)</option>
-                <option value="Discharge">⚪ Discharge (จำหน่าย/ส่งต่อ)</option>
-                <option value="COPD">🟠 COPD (โรคปอดอุดกั้นฯ)</option>
-              </select>
+            <label className="block text-sm font-bold mb-2">เบอร์โทรศัพท์ (ถ้ามี)</label>
+            <input type="tel" name="phone" className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 outline-none dark:text-white" value={formData.phone} onChange={handleChange} placeholder="08x-xxx-xxxx" />
           </div>
 
-          <hr className="border-[#3D3834]/10 dark:border-zinc-700 my-4" />
-
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-[#2D2A26] dark:bg-white text-white dark:text-black font-bold text-lg py-4 border-2 border-[#3D3834] dark:border-zinc-600 shadow-[4px_4px_0px_0px_#888] dark:shadow-none hover:bg-[#D97736] dark:hover:bg-gray-200 hover:shadow-[4px_4px_0px_0px_#3D3834] active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? "กำลังบันทึก..." : (
-              <>
-                <Save size={20} /> บันทึกข้อมูลผู้ป่วย
-              </>
-            )}
+          <button type="submit" disabled={loading} className="w-full bg-[#2D2A26] dark:bg-white text-white dark:text-black font-bold text-lg py-4 border-2 border-[#3D3834] dark:border-zinc-600 shadow-[4px_4px_0px_0px_#888] hover:bg-[#D97736] hover:shadow-[4px_4px_0px_0px_#3D3834] dark:hover:bg-gray-200 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2">
+            {loading ? "กำลังตรวจสอบและบันทึก..." : <><Save size={20} /> ยืนยันการลงทะเบียน</>}
           </button>
 
         </form>
