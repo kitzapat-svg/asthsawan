@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from "next-auth"; // เรียกใช้ session
-import { authOptions } from "../auth/[...nextauth]/route"; // ดึง config จากไฟล์ auth
-import { getSheetData, appendData, updatePatientStatus } from '@/lib/sheets';
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { getSheetData, appendData, updatePatientStatus, updatePatientData, deleteRow } from '@/lib/sheets';
 
 const SHEET_CONFIG = {
   PATIENTS_TAB: 'patients',
@@ -9,21 +9,17 @@ const SHEET_CONFIG = {
   TECHNIQUE_TAB: 'technique_checks',
 };
 
-// Helper: ตัดเลข 0 นำหน้าออก เพื่อให้เทียบ HN ได้แม่นยำ
 const normalize = (val: any) => String(val).trim().replace(/^0+/, '');
 
-// --- GET: ดึงข้อมูล (ล็อคสิทธิ์ + กรองข้อมูล) ---
+// --- GET ---
 export async function GET(request: Request) {
-  // 1. Security Check: ตรวจสอบว่า Login หรือยัง?
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
-    const hn = searchParams.get('hn'); // รับ parameter hn เพิ่ม
+    const hn = searchParams.get('hn');
 
     let tabName = '';
     if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
@@ -32,33 +28,26 @@ export async function GET(request: Request) {
     else return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
 
     const data = await getSheetData(tabName);
-    
     if (!data) return NextResponse.json([]);
 
-    // 2. Privacy Check: กรองข้อมูลที่ Server ก่อนส่งกลับ
     if (hn) {
-        // ถ้ามีการส่ง HN มา ให้กรองเอาเฉพาะข้อมูลของ HN นั้น
         const filteredData = Array.isArray(data) 
             ? data.filter((item: any) => normalize(item.hn || item[0]) === normalize(hn))
             : data;
         return NextResponse.json(filteredData);
     }
 
-    // ถ้าไม่มี HN (เช่นดึงรายชื่อผู้ป่วยทั้งหมดไปหน้า Dashboard) ก็ส่งไปทั้งหมด
     return NextResponse.json(data);
-
   } catch (error) {
     console.error("API GET Error:", error);
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
   }
 }
 
-// --- POST: บันทึกข้อมูล (ล็อคสิทธิ์) ---
+// --- POST ---
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await request.json();
@@ -82,26 +71,34 @@ export async function POST(request: Request) {
   }
 }
 
-// --- PUT: อัปเดตข้อมูล (ล็อคสิทธิ์) ---
+// --- PUT (Update) ---
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await request.json();
-    const { type, hn, status } = body;
+    // รองรับ 2 แบบ:
+    // 1. อัปเดตสถานะ: { type, hn, status }
+    // 2. แก้ไขข้อมูลผู้ป่วย: { type, hn, data: [...] }
+    const { type, hn, status, data } = body;
 
-    if (!type || !hn || !status) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
+    if (!type || !hn) return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
 
     let tabName = "";
     if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
     else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
-    const result = await updatePatientStatus(tabName, hn, status);
+    let result;
+    if (data) {
+        // กรณีมี data เข้ามา แปลว่าเป็น Full Edit
+        result = await updatePatientData(tabName, hn, data);
+    } else if (status) {
+        // กรณีมีแค่ status แปลว่าเป็น Quick Update Status
+        result = await updatePatientStatus(tabName, hn, status);
+    } else {
+        return NextResponse.json({ error: "No update data provided" }, { status: 400 });
+    }
     
     if (result.success) {
       return NextResponse.json({ message: "Update success" });
@@ -112,4 +109,33 @@ export async function PUT(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: "Failed to update data" }, { status: 500 });
   }
+}
+
+// --- DELETE ---
+export async function DELETE(request: Request) {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    try {
+        const { searchParams } = new URL(request.url);
+        const type = searchParams.get('type');
+        const hn = searchParams.get('hn');
+
+        if (!type || !hn) return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+
+        let tabName = "";
+        if (type === 'patients') tabName = SHEET_CONFIG.PATIENTS_TAB;
+        else return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+
+        const result = await deleteRow(tabName, hn);
+
+        if (result.success) {
+            return NextResponse.json({ message: "Delete success" });
+        } else {
+            return NextResponse.json({ error: result.error }, { status: 500 });
+        }
+
+    } catch (error) {
+        return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
+    }
 }
