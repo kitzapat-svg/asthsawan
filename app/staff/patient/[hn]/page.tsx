@@ -96,7 +96,7 @@ export default function PatientDetailPage() {
                 day: '2-digit', month: 'short', year: '2-digit' 
             }),
             fullDate: v.date,
-            // แก้ไข: ถ้าเป็น 0 หรือแปลงไม่ได้ ให้เป็น null เพื่อให้กราฟเว้นว่างไว้
+            // ถ้าเป็น 0 หรือแปลงไม่ได้ ให้เป็น null เพื่อให้กราฟเว้นว่างไว้ (แต่ connectNulls จะช่วยเชื่อมให้)
             pefr: parseInt(v.pefr) || null 
           }))
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
@@ -314,7 +314,8 @@ export default function PatientDetailPage() {
                             <Tooltip contentStyle={{ borderRadius: '0px', border: '2px solid #3D3834', boxShadow: '4px 4px 0px 0px #3D3834', color: '#000' }}/>
                             <ReferenceLine y={predictedVal * 0.8} stroke="#22c55e" strokeDasharray="3 3"><Label value="Green Zone" fill="#22c55e" fontSize={10} position="insideTopRight" /></ReferenceLine>
                             <ReferenceLine y={predictedVal * 0.6} stroke="#ef4444" strokeDasharray="3 3"><Label value="Red Zone" fill="#ef4444" fontSize={10} position="insideTopRight" /></ReferenceLine>
-                            <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                            {/* เพิ่ม connectNulls ตรงนี้ครับ */}
+                            <Line type="monotone" dataKey="pefr" stroke="#D97736" strokeWidth={3} dot={{ r: 4, fill: '#D97736', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} connectNulls />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
