@@ -1,6 +1,7 @@
-import NextAuth, { AuthOptions } from "next-auth"; // เพิ่ม AuthOptions
+import NextAuth, { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+// 1. Export authOptions เพื่อให้ API อื่น (เช่น api/db) เรียกใช้ตรวจสอบสิทธิ์ได้
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
@@ -11,6 +12,7 @@ export const authOptions: AuthOptions = {
       async authorize(credentials) {
         const password = credentials?.password;
         
+        // 2. ความปลอดภัย: ตรวจสอบกับ Environment Variable เท่านั้น
         if (password === process.env.ADMIN_PASSWORD) {
           return { id: "1", name: "Staff Admin", email: "staff@hospital.com" };
         }
@@ -23,7 +25,7 @@ export const authOptions: AuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60,
+    maxAge: 8 * 60 * 60, // 8 ชั่วโมง
   },
   jwt: {
     maxAge: 8 * 60 * 60,
