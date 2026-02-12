@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSheetData, appendData, updatePatientStatus } from '@/lib/sheets';
+import { getServerSession } from "next-auth"; // ต้อง import
+import { authOptions } from "../auth/[...nextauth]/route"; // ต้องแยก authOptions ออกมา export
 
 // Config ชื่อ Tab (ต้องตรงกับใน Google Sheets เป๊ะๆ)
 const SHEET_CONFIG = {
@@ -7,6 +9,12 @@ const SHEET_CONFIG = {
   VISITS_TAB: 'visits',
   TECHNIQUE_TAB: 'technique_checks', // <--- ต้องมีบรรทัดนี้
 };
+
+export async function GET(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
 export async function GET(request: Request) {
   try {
@@ -79,3 +87,4 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Failed to update data" }, { status: 500 });
   }
 }
+
