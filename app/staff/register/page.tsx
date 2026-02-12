@@ -19,6 +19,19 @@ export default function RegisterPatientPage() {
     status: 'Active',
   });
 
+  // ฟังก์ชันสร้าง Token แบบ UUID v4 (ปลอดภัยสูง)
+  const generateToken = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    // Fallback (กรณี Browser เก่ามาก)
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -28,24 +41,24 @@ export default function RegisterPatientPage() {
     setLoading(true);
 
     try {
-      // 1. จัดรูปแบบ HN ให้ครบ 7 หลัก (เติม 0 ด้านหน้า)
+      // 1. จัดรูปแบบ HN ให้ครบ 7 หลัก
       const rawHN = formData.hn.trim();
       const formattedHN = rawHN.padStart(7, '0');
 
-      // 2. 🛡️ เช็ค HN ซ้ำ (ใช้ HN ที่เติม 0 แล้วไปเช็ค)
+      // 2. เช็ค HN ซ้ำ
       const checkRes = await fetch(`/api/db?type=patients&hn=${formattedHN}`);
       const existingPatients = await checkRes.json();
 
       if (Array.isArray(existingPatients) && existingPatients.length > 0) {
         alert(`❌ HN: ${formattedHN} มีอยู่ในระบบแล้ว! กรุณาตรวจสอบอีกครั้ง`);
         setLoading(false);
-        return; // หยุดการทำงาน
+        return;
       }
 
-      // 3. ✅ ถ้าไม่ซ้ำ ให้บันทึกข้อมูล
-      const public_token = Math.random().toString(36).substring(2, 15);
+      // 3. สร้าง Token แบบ UUID
+      const public_token = generateToken();
       
-      // คำนวณ Best PEFR อัตโนมัติ
+      // คำนวณ Best PEFR
       const age = new Date().getFullYear() - new Date(formData.dob).getFullYear();
       let predicted_pefr = 0;
       const h = parseFloat(formData.height);
@@ -57,17 +70,17 @@ export default function RegisterPatientPage() {
       }
       predicted_pefr = Math.max(0, Math.round(predicted_pefr));
 
-      // เตรียมข้อมูลลงตาราง (เรียง Index ให้ตรงกับ lib/sheets.ts)
+      // เตรียมข้อมูลลงตาราง
       const patientData = [
-        formattedHN,               // 0: HN (แบบ 7 หลัก)
+        formattedHN,               // 0: HN
         formData.prefix,           // 1: Prefix
         formData.first_name.trim(),// 2: First Name
         formData.last_name.trim(), // 3: Last Name
         formData.dob,              // 4: DOB
-        predicted_pefr.toString(), // 5: Best/Predicted PEFR (ย้ายมาตรงนี้)
-        formData.height,           // 6: Height (ย้ายมาตรงนี้)
+        predicted_pefr.toString(), // 5: Predicted PEFR
+        formData.height,           // 6: Height
         formData.status,           // 7: Status
-        public_token,              // 8: Token
+        public_token,              // 8: Token (UUID)
         formData.phone.trim()      // 9: Phone
       ];
 
@@ -78,7 +91,7 @@ export default function RegisterPatientPage() {
       });
 
       if (res.ok) {
-        alert(`✅ ลงทะเบียนสำเร็จ!\nHN: ${formattedHN}\nPredicted PEFR: ${predicted_pefr}`);
+        alert(`✅ ลงทะเบียนสำเร็จ!\nHN: ${formattedHN}\nToken: ${public_token}`); // แสดง Token ให้เห็นตอน Alert เพื่อความมั่นใจ (optional)
         router.push('/staff/dashboard');
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึก");
@@ -125,7 +138,7 @@ export default function RegisterPatientPage() {
                 name="hn" 
                 required 
                 className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] outline-none font-bold text-lg dark:text-white placeholder:font-normal"
-                placeholder="Ex. 1234 (ระบบจะเติม 0 ให้เป็น 0001234)"
+                placeholder="Ex. 1234"
                 value={formData.hn}
                 onChange={handleChange}
             />
