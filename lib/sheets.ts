@@ -1,7 +1,6 @@
-// lib/sheets.ts
 import { google } from 'googleapis';
 
-// 1. ตั้งค่าการยืนยันตัวตน
+// 1. ตั้งค่าการยืนยันตัวตน (Authentication)
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -13,7 +12,7 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// Helper: แปลงข้อมูลแถว (Array) ให้เป็น Object (JSON)
+// Helper: แปลงข้อมูลแถว (Array) ให้เป็น Object แบบ Dynamic (สำหรับ Tab อื่นๆ)
 const arrayToObject = (headers: string[], rows: any[][]) => {
   return rows.map((row) => {
     let obj: any = {};
@@ -24,25 +23,51 @@ const arrayToObject = (headers: string[], rows: any[][]) => {
   });
 };
 
-// ฟังก์ชัน: ดึงข้อมูล
+// Helper: แปลงข้อมูลผู้ป่วยแบบระบุตำแหน่ง (เพื่อให้ตรงกับหน้า Register ใหม่)
+const formatPatient = (row: string[]) => {
+  return {
+    hn: row[0] || "",
+    prefix: row[1] || "",
+    first_name: row[2] || "",
+    last_name: row[3] || "",
+    dob: row[4] || "",
+    best_pefr: row[5] || "", // Index 5 = Predicted PEFR (Column F)
+    height: row[6] || "",    // Index 6 = Height (Column G)
+    status: row[7] || "Active",
+    public_token: row[8] || "",
+    phone: row[9] || "",
+  };
+};
+
+// --- ฟังก์ชันหลัก ---
+
+// 1. ดึงข้อมูล (Read)
 export async function getSheetData(tabName: string) {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${tabName}!A:Z`, 
     });
+    
     const rows = response.data.values;
     if (!rows || rows.length === 0) return [];
+
+    // ถ้าเป็น Tab 'patients' ให้ใช้ตัวแปลงเฉพาะ เพื่อความแม่นยำของ Column
+    if (tabName === 'patients') {
+      // ตัด Header ออก (slice(1)) แล้ว map ด้วย formatPatient
+      return rows.slice(1).map(formatPatient);
+    }
     
-    // แถวแรกคือ Header, แถวถัดไปคือข้อมูล
+    // สำหรับ Tab อื่นๆ (visits, technique_checks) ใช้แบบ Generic ตามชื่อหัวตาราง
     return arrayToObject(rows[0], rows.slice(1));
+
   } catch (error) {
     console.error(`Error fetching ${tabName}:`, error);
     return [];
   }
 }
 
-// ฟังก์ชัน: บันทึกข้อมูล (ต่อท้าย)
+// 2. บันทึกข้อมูลใหม่ต่อท้าย (Create)
 export async function appendData(tabName: string, values: any[]) {
   try {
     await sheets.spreadsheets.values.append({
@@ -58,12 +83,10 @@ export async function appendData(tabName: string, values: any[]) {
   }
 }
 
-// ... (โค้ดเดิมด้านบน)
-
-// ฟังก์ชัน: อัปเดตสถานะผู้ป่วย
+// 3. อัปเดตสถานะผู้ป่วย (Update Status)
 export async function updatePatientStatus(tabName: string, hn: string, newStatus: string) {
   try {
-    // 1. ดึงคอลัมน์ A (HN) ทั้งหมดมาเพื่อหาว่าคนไข้อยู่แถวไหน
+    // ดึงคอลัมน์ A (HN) เพื่อหาบรรทัดที่ต้องการแก้ไข
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${tabName}!A:A`, 
@@ -72,16 +95,16 @@ export async function updatePatientStatus(tabName: string, hn: string, newStatus
     const rows = response.data.values;
     if (!rows || rows.length === 0) return { success: false, error: "No data found" };
 
-    // 2. หา Index ของแถวที่ HN ตรงกัน (บวก 1 เพราะ Array เริ่มที่ 0 แต่ Sheet เริ่มแถวที่ 1)
+    // หา Index ของแถวที่ HN ตรงกัน (+1 เพราะ Sheet เริ่มแถวที่ 1)
     const rowIndex = rows.findIndex((row) => row[0] === hn) + 1;
 
     if (rowIndex === 0) return { success: false, error: "HN not found" };
 
-    // 3. สั่งอัปเดตเฉพาะ Cell ที่เป็น Status (สมมติว่า Status อยู่ Column H ตามโค้ด Register เดิม)
-    // Column H คือ Column ที่ 8
+    // อัปเดต Column H (Status) ของแถวนั้น
+    // Column H คือตำแหน่งที่ 8 (Index 7) ซึ่งตรงกับ formData.status ในหน้า Register
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${tabName}!H${rowIndex}`, // แก้เฉพาะช่อง H ของแถวนั้น
+      range: `${tabName}!H${rowIndex}`, 
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[newStatus]]
