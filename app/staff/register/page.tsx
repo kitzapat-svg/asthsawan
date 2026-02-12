@@ -15,7 +15,7 @@ export default function RegisterPatientPage() {
     last_name: '',
     dob: '',
     height: '',
-    phone: '', // เพิ่มช่องเบอร์โทร
+    phone: '',
     status: 'Active',
   });
 
@@ -28,20 +28,24 @@ export default function RegisterPatientPage() {
     setLoading(true);
 
     try {
-      // 1. 🛡️ Check for Duplicate HN (เช็ค HN ซ้ำ)
-      const checkRes = await fetch(`/api/db?type=patients&hn=${formData.hn.trim()}`);
+      // 1. จัดรูปแบบ HN ให้ครบ 7 หลัก (เติม 0 ด้านหน้า)
+      const rawHN = formData.hn.trim();
+      const formattedHN = rawHN.padStart(7, '0');
+
+      // 2. 🛡️ เช็ค HN ซ้ำ (ใช้ HN ที่เติม 0 แล้วไปเช็ค)
+      const checkRes = await fetch(`/api/db?type=patients&hn=${formattedHN}`);
       const existingPatients = await checkRes.json();
 
       if (Array.isArray(existingPatients) && existingPatients.length > 0) {
-        alert(`❌ HN: ${formData.hn} มีอยู่ในระบบแล้ว! กรุณาตรวจสอบอีกครั้ง`);
-        setLoading(false); // หยุดโหลด
-        return; // หยุดการทำงานทันที
+        alert(`❌ HN: ${formattedHN} มีอยู่ในระบบแล้ว! กรุณาตรวจสอบอีกครั้ง`);
+        setLoading(false);
+        return; // หยุดการทำงาน
       }
 
-      // 2. ✅ ถ้าไม่ซ้ำ ให้บันทึกข้อมูล (Proceed to Save)
+      // 3. ✅ ถ้าไม่ซ้ำ ให้บันทึกข้อมูล
       const public_token = Math.random().toString(36).substring(2, 15);
       
-      // คำนวณ Best PEFR อัตโนมัติ (Predicted)
+      // คำนวณ Best PEFR อัตโนมัติ
       const age = new Date().getFullYear() - new Date(formData.dob).getFullYear();
       let predicted_pefr = 0;
       const h = parseFloat(formData.height);
@@ -53,18 +57,18 @@ export default function RegisterPatientPage() {
       }
       predicted_pefr = Math.max(0, Math.round(predicted_pefr));
 
-      // เตรียมข้อมูลลงตาราง (เรียงตาม Google Sheets)
+      // เตรียมข้อมูลลงตาราง (เรียง Index ให้ตรงกับ lib/sheets.ts)
       const patientData = [
-        formData.hn.trim(),
-        formData.prefix,
-        formData.first_name.trim(),
-        formData.last_name.trim(),
-        formData.dob,
-        predicted_pefr.toString(), // <--- Index 5: Predicted PEFR
-        formData.height,           // <--- Index 6: Height
-        formData.status,
-        public_token,
-        formData.phone.trim()      // <--- Index 9: Phone
+        formattedHN,               // 0: HN (แบบ 7 หลัก)
+        formData.prefix,           // 1: Prefix
+        formData.first_name.trim(),// 2: First Name
+        formData.last_name.trim(), // 3: Last Name
+        formData.dob,              // 4: DOB
+        predicted_pefr.toString(), // 5: Best/Predicted PEFR (ย้ายมาตรงนี้)
+        formData.height,           // 6: Height (ย้ายมาตรงนี้)
+        formData.status,           // 7: Status
+        public_token,              // 8: Token
+        formData.phone.trim()      // 9: Phone
       ];
 
       const res = await fetch('/api/db', {
@@ -74,7 +78,7 @@ export default function RegisterPatientPage() {
       });
 
       if (res.ok) {
-        alert("✅ ลงทะเบียนผู้ป่วยสำเร็จ!");
+        alert(`✅ ลงทะเบียนสำเร็จ!\nHN: ${formattedHN}\nPredicted PEFR: ${predicted_pefr}`);
         router.push('/staff/dashboard');
       } else {
         alert("เกิดข้อผิดพลาดในการบันทึก");
@@ -121,11 +125,13 @@ export default function RegisterPatientPage() {
                 name="hn" 
                 required 
                 className="w-full px-4 py-3 bg-[#F7F3ED] dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] outline-none font-bold text-lg dark:text-white placeholder:font-normal"
-                placeholder="Ex. 6600123"
+                placeholder="Ex. 1234 (ระบบจะเติม 0 ให้เป็น 0001234)"
                 value={formData.hn}
                 onChange={handleChange}
             />
-            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><AlertCircle size={12}/> ระบบจะตรวจสอบ HN ซ้ำให้อัตโนมัติก่อนบันทึก</p>
+            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+              <AlertCircle size={12}/> ระบบจะเติม 0 ด้านหน้าให้ครบ 7 หลัก และตรวจสอบ HN ซ้ำอัตโนมัติ
+            </p>
           </div>
 
           <div className="grid grid-cols-4 gap-4">
