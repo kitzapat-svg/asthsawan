@@ -69,27 +69,29 @@ export default function PatientDetailPage() {
     fetchData();
   }, [params.hn]);
 
+  // --- ส่วนที่แก้ไข: ส่ง HN ไปขอข้อมูลจาก Server โดยตรง (Server-Side Filtering) ---
   const fetchData = async () => {
     try {
-      // 1. Fetch Patient
+      // 1. Fetch Patient (ส่ง HN ไป)
       const resPatients = await fetch(`/api/db?type=patients&hn=${params.hn}`);
       const dataPatients: Patient[] = await resPatients.json();
-      const foundPatient = dataPatients.find(p => normalizeHN(p.hn) === normalizeHN(params.hn));
+      
+      // API ส่งกลับมาเป็น Array กรองแล้ว (หรือว่าง) เราเอาตัวแรก
+      const foundPatient = dataPatients.length > 0 ? dataPatients[0] : null;
 
       if (foundPatient) {
         setPatient(foundPatient);
 
-        // 2. Fetch Visits
+        // 2. Fetch Visits (ส่ง HN ไป)
         const resVisits = await fetch(`/api/db?type=visits&hn=${params.hn}`);
         const dataVisits: Visit[] = await resVisits.json();
         
-        // 3. Fetch Technique Checks
+        // 3. Fetch Technique Checks (ส่ง HN ไป)
         const resTechniques = await fetch(`/api/db?type=technique_checks&hn=${params.hn}`);
         const rawTechniqueData = await resTechniques.json();
 
-        // Process Visits
+        // Process Visits (ไม่ต้อง filter แล้ว แต่ sort อย่างเดียว)
         const history = dataVisits
-          .filter(v => normalizeHN(v.hn) === normalizeHN(params.hn))
           .map(v => ({
             ...v,
             dateDisplay: new Date(v.date).toLocaleDateString('th-TH', { 
@@ -101,15 +103,12 @@ export default function PatientDetailPage() {
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
         setVisitHistory(history);
 
-        // Process Technique Checks (แก้ไขตรงนี้ครับ!)
+        // Process Technique Checks (ไม่ต้อง filter แล้ว)
         if (Array.isArray(rawTechniqueData)) {
             const techHistory = rawTechniqueData
-                // เปลี่ยนจาก t[0] เป็น t.hn ตาม Debug Info
-                .filter((t: any) => normalizeHN(t.hn) === normalizeHN(params.hn)) 
                 .map((t: any) => ({
                     hn: t.hn,
                     date: t.date,
-                    // สร้าง Array steps จาก field step_1 ถึง step_8
                     steps: [
                         t.step_1, t.step_2, t.step_3, t.step_4, 
                         t.step_5, t.step_6, t.step_7, t.step_8
