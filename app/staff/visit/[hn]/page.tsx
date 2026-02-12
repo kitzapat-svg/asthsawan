@@ -40,20 +40,22 @@ export default function RecordVisitPage() {
     drp: '-',
     advice: '-',
     technique_check: 'ไม่',
-    technique_note: '-', // <--- เพิ่ม state เก็บ Note ของเทคนิค
+    technique_note: '-', 
     next_appt: '',
     note: '-',
     is_new_case: 'FALSE',
   });
 
+  // --- ส่วนที่แก้ไข: ส่ง HN ไปให้ Server กรองมาให้เลย ---
   useEffect(() => {
     const fetchLastMedication = async () => {
         try {
-            const res = await fetch('/api/db?type=visits');
+            // ส่ง HN ไปด้วย เพื่อให้ได้ข้อมูล Visit ของคนนี้เท่านั้น
+            const res = await fetch(`/api/db?type=visits&hn=${params.hn}`); 
             const data: VisitData[] = await res.json();
-            const history = data
-                .filter(v => v.hn === params.hn)
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            
+            // ไม่ต้อง .filter() แล้ว เพราะ Server ส่งมาเฉพาะของ HN นี้
+            const history = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
             if (history.length > 0) {
                 const lastVisit = history[0];
@@ -109,13 +111,12 @@ export default function RecordVisitPage() {
         inhalerScore
       ];
 
-      // เพิ่ม technique_note ลงไปท้ายสุด
       const checklistData = [
         params.hn,
         today,
         ...checklist.map(checked => checked ? "1" : "0"),
         totalScore.toString(),
-        formData.technique_note // <--- ส่ง Note ไปบันทึก
+        formData.technique_note 
       ];
 
       const promises = [
@@ -258,7 +259,6 @@ export default function RecordVisitPage() {
                         </label>
                     ))}
                     
-                    {/* เพิ่มช่อง Note สำหรับเทคนิคพ่นยา */}
                     <div className="pt-2">
                         <label className="block text-sm font-bold mb-2 text-gray-700 dark:text-zinc-300">รายละเอียดเพิ่มเติม/ปัญหาที่พบ (Technique Note)</label>
                         <textarea 
