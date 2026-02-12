@@ -69,43 +69,43 @@ export default function PatientDetailPage() {
     fetchData();
   }, [params.hn]);
 
-  // --- ส่วนที่แก้ไข: ส่ง HN ไปขอข้อมูลจาก Server โดยตรง (Server-Side Filtering) ---
   const fetchData = async () => {
     try {
-      // 1. Fetch Patient (ส่ง HN ไป)
+      // 1. Fetch Patient
       const resPatients = await fetch(`/api/db?type=patients&hn=${params.hn}`);
       const dataPatients: Patient[] = await resPatients.json();
-      
-      // API ส่งกลับมาเป็น Array กรองแล้ว (หรือว่าง) เราเอาตัวแรก
-      const foundPatient = dataPatients.length > 0 ? dataPatients[0] : null;
+      const foundPatient = dataPatients.find(p => normalizeHN(p.hn) === normalizeHN(params.hn));
 
       if (foundPatient) {
         setPatient(foundPatient);
 
-        // 2. Fetch Visits (ส่ง HN ไป)
+        // 2. Fetch Visits
         const resVisits = await fetch(`/api/db?type=visits&hn=${params.hn}`);
         const dataVisits: Visit[] = await resVisits.json();
         
-        // 3. Fetch Technique Checks (ส่ง HN ไป)
+        // 3. Fetch Technique Checks
         const resTechniques = await fetch(`/api/db?type=technique_checks&hn=${params.hn}`);
         const rawTechniqueData = await resTechniques.json();
 
-        // Process Visits (ไม่ต้อง filter แล้ว แต่ sort อย่างเดียว)
+        // Process Visits
         const history = dataVisits
+          .filter(v => normalizeHN(v.hn) === normalizeHN(params.hn))
           .map(v => ({
             ...v,
             dateDisplay: new Date(v.date).toLocaleDateString('th-TH', { 
                 day: '2-digit', month: 'short', year: '2-digit' 
             }),
             fullDate: v.date,
-            pefr: parseInt(v.pefr) || 0
+            // แก้ไข: ถ้าเป็น 0 หรือแปลงไม่ได้ ให้เป็น null เพื่อให้กราฟเว้นว่างไว้
+            pefr: parseInt(v.pefr) || null 
           }))
           .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime());
         setVisitHistory(history);
 
-        // Process Technique Checks (ไม่ต้อง filter แล้ว)
+        // Process Technique Checks
         if (Array.isArray(rawTechniqueData)) {
             const techHistory = rawTechniqueData
+                .filter((t: any) => normalizeHN(t.hn) === normalizeHN(params.hn)) 
                 .map((t: any) => ({
                     hn: t.hn,
                     date: t.date,
@@ -352,7 +352,15 @@ export default function PatientDetailPage() {
                                 {[...visitHistory].reverse().map((visit, index) => (
                                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors">
                                         <td className="p-3 font-mono font-bold whitespace-nowrap dark:text-zinc-300">{visit.dateDisplay}</td>
-                                        <td className="p-3"><span className={`font-black ${visit.pefr > predictedVal * 0.8 ? 'text-green-600' : visit.pefr > predictedVal * 0.6 ? 'text-yellow-600' : 'text-red-600'}`}>{visit.pefr}</span></td>
+                                        <td className="p-3">
+                                            <span className={`font-black ${
+                                                !visit.pefr ? 'text-gray-400' :
+                                                visit.pefr > predictedVal * 0.8 ? 'text-green-600' :
+                                                visit.pefr > predictedVal * 0.6 ? 'text-yellow-600' : 'text-red-600'
+                                            }`}>
+                                                {visit.pefr || "-"}
+                                            </span>
+                                        </td>
                                         <td className="p-3"><span className={`px-2 py-0.5 rounded text-xs border ${visit.control_level === 'Well-controlled' ? 'bg-green-50 text-green-700 border-green-200' : visit.control_level === 'Partly Controlled' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{visit.control_level}</span></td>
                                         <td className="p-3 text-xs dark:text-zinc-400"><div className="flex flex-col gap-1"><span className="flex items-center gap-1"><Pill size={10} className="text-blue-500"/> {visit.controller}</span><span className="flex items-center gap-1"><Pill size={10} className="text-orange-500"/> {visit.reliever}</span></div></td>
                                         <td className="p-3 text-xs">{visit.technique_check === 'ทำ' ? <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle size={12}/> สอนแล้ว</span> : <span className="text-gray-400">-</span>}</td>
