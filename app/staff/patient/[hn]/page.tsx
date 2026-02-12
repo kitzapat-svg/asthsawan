@@ -72,7 +72,7 @@ export default function PatientDetailPage() {
   const fetchData = async () => {
     try {
       // 1. Fetch Patient
-      const resPatients = await fetch('/api/db?type=patients');
+      const resPatients = await fetch(`/api/db?type=patients&hn=${params.hn}`);
       const dataPatients: Patient[] = await resPatients.json();
       const foundPatient = dataPatients.find(p => normalizeHN(p.hn) === normalizeHN(params.hn));
 
@@ -80,11 +80,11 @@ export default function PatientDetailPage() {
         setPatient(foundPatient);
 
         // 2. Fetch Visits
-        const resVisits = await fetch('/api/db?type=visits');
+        const resVisits = await fetch(`/api/db?type=visits&hn=${params.hn}`);
         const dataVisits: Visit[] = await resVisits.json();
         
         // 3. Fetch Technique Checks
-        const resTechniques = await fetch('/api/db?type=technique_checks');
+        const resTechniques = await fetch(`/api/db?type=technique_checks&hn=${params.hn}`);
         const rawTechniqueData = await resTechniques.json();
 
         // Process Visits
