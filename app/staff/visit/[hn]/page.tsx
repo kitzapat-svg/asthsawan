@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, Activity, CheckCircle, Stethoscope, FileText, ClipboardList, RefreshCw, Users, XCircle } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 interface VisitData {
@@ -44,9 +44,12 @@ export default function RecordVisitPage() {
     next_appt: '',
     note: '-',
     is_new_case: 'FALSE',
+    // Flags สำหรับ Checkbox
+    is_relative_pickup: false, // ญาติรับแทน
+    no_pefr: false, // ไม่ได้เป่า Peak Flow
   });
 
-  // --- ส่วนที่แก้ไข: ส่ง HN ไปให้ Server กรองมาให้เลย ---
+  // 1. ดึงข้อมูลยาเดิม (แบบปลอดภัย ส่ง HN ไปกรองที่ Server)
   useEffect(() => {
     const fetchLastMedication = async () => {
         try {
@@ -54,7 +57,7 @@ export default function RecordVisitPage() {
             const res = await fetch(`/api/db?type=visits&hn=${params.hn}`); 
             const data: VisitData[] = await res.json();
             
-            // ไม่ต้อง .filter() แล้ว เพราะ Server ส่งมาเฉพาะของ HN นี้
+            // Server กรองมาให้แล้ว ก็แค่เรียงวันที่
             const history = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
             if (history.length > 0) {
@@ -74,10 +77,19 @@ export default function RecordVisitPage() {
     fetchLastMedication();
   }, [params.hn]);
 
+  // 2. Logic อัตโนมัติ: ถ้าญาติรับแทน -> ปรับ Technique Check เป็น 'ไม่'
+  useEffect(() => {
+    if (formData.is_relative_pickup) {
+        setFormData(prev => ({ ...prev, technique_check: 'ไม่' }));
+    }
+  }, [formData.is_relative_pickup]);
+
   const totalScore = checklist.filter(Boolean).length;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
+    const name = e.target.name;
+    setFormData({ ...formData, [name]: value });
   };
 
   const toggleCheck = (index: number) => {
@@ -94,10 +106,23 @@ export default function RecordVisitPage() {
       const today = new Date().toISOString().split('T')[0];
       const inhalerScore = formData.technique_check === 'ทำ' ? totalScore.toString() : '-';
 
+      // จัดการค่าพิเศษก่อนบันทึก
+      const finalPefr = formData.no_pefr ? "-" : formData.pefr;
+      let finalNote = formData.note;
+      
+      // ถ้าญาติรับแทน เติมข้อความลงใน Note อัตโนมัติ
+      if (formData.is_relative_pickup) {
+          if (finalNote === '-' || finalNote.trim() === '') {
+              finalNote = 'ญาติรับยาแทน';
+          } else {
+              finalNote = `${finalNote} (ญาติรับยาแทน)`;
+          }
+      }
+
       const visitData = [
         params.hn,
         today,
-        formData.pefr,
+        finalPefr, // บันทึก "-" ถ้าไม่ได้เป่า
         formData.control_level,
         formData.controller,
         formData.reliever,
@@ -106,7 +131,7 @@ export default function RecordVisitPage() {
         formData.advice,
         formData.technique_check,
         formData.next_appt,
-        formData.note,
+        finalNote, // Note ที่ผ่านการปรุงแต่งแล้ว
         formData.is_new_case,
         inhalerScore
       ];
@@ -174,12 +199,55 @@ export default function RecordVisitPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* Section 1: Clinical */}
           <div className="bg-[#F7F3ED] dark:bg-zinc-800/50 p-6 border border-[#3D3834]/20 dark:border-zinc-700 rounded-lg space-y-4">
-             <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Activity size={18}/> 1. การประเมินผล (Clinical)</h3>
+             <div className="flex items-center justify-between">
+                <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Activity size={18}/> 1. การประเมินผล (Clinical)</h3>
+                
+                {/* Checkbox ญาติรับยาแทน */}
+                <label className="flex items-center gap-2 cursor-pointer bg-white dark:bg-zinc-900 px-3 py-1 rounded border border-gray-200 dark:border-zinc-700 shadow-sm hover:border-[#D97736] transition-colors">
+                    <input 
+                        type="checkbox" 
+                        name="is_relative_pickup"
+                        checked={formData.is_relative_pickup} 
+                        onChange={handleChange} 
+                        className="w-4 h-4 accent-[#D97736]" 
+                    />
+                    <span className="font-bold text-sm text-gray-700 dark:text-zinc-300 flex items-center gap-1">
+                        <Users size={14}/> ญาติรับยาแทน
+                    </span>
+                </label>
+             </div>
+
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label className="block text-sm font-bold mb-2">ค่า PEFR (L/min) <span className="text-red-500">*</span></label>
-                    <input type="number" name="pefr" required className="w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] outline-none font-black text-xl text-center dark:text-white" value={formData.pefr} onChange={handleChange} placeholder="000" />
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block text-sm font-bold">ค่า PEFR (L/min) <span className="text-red-500">*</span></label>
+                        
+                        {/* Checkbox ไม่ได้เป่า */}
+                        <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-500 hover:text-[#D97736]">
+                            <input 
+                                type="checkbox" 
+                                name="no_pefr"
+                                checked={formData.no_pefr} 
+                                onChange={handleChange} 
+                                className="w-3.5 h-3.5 accent-[#D97736]" 
+                            />
+                            <span>ไม่ได้เป่า (N/A)</span>
+                        </label>
+                    </div>
+                    
+                    <input 
+                        type="number" 
+                        name="pefr" 
+                        required={!formData.no_pefr} // ถ้าติ๊ก no_pefr ไม่ต้อง required
+                        disabled={formData.no_pefr}  // ถ้าติ๊ก no_pefr ให้ disable ช่องกรอก
+                        className={`w-full px-4 py-3 bg-white dark:bg-zinc-800 border-2 border-[#3D3834] dark:border-zinc-600 focus:border-[#D97736] outline-none font-black text-xl text-center dark:text-white transition-all ${formData.no_pefr ? 'opacity-50 bg-gray-100 cursor-not-allowed' : ''}`} 
+                        value={formData.no_pefr ? '' : formData.pefr} 
+                        onChange={handleChange} 
+                        placeholder={formData.no_pefr ? "-" : "000"} 
+                    />
                 </div>
                 <div>
                     <label className="block text-sm font-bold mb-2">ระดับการควบคุม</label>
@@ -198,6 +266,7 @@ export default function RecordVisitPage() {
              </div>
           </div>
 
+          {/* Section 2: Medication */}
           <div className="space-y-4 relative">
              <div className="flex items-center justify-between">
                 <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><Stethoscope size={18}/> 2. การใช้ยา (Medication)</h3>
@@ -236,10 +305,17 @@ export default function RecordVisitPage() {
              </div>
           </div>
 
+          {/* Section 3: Technique */}
           <div className="space-y-4 border-t border-gray-200 dark:border-zinc-800 pt-6">
              <div className="flex justify-between items-center">
                  <h3 className="font-bold flex items-center gap-2 text-[#D97736]"><ClipboardList size={18}/> 3. เทคนิคพ่นยา MDI</h3>
-                 <select name="technique_check" value={formData.technique_check} onChange={handleChange} className="px-3 py-1 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded text-sm cursor-pointer">
+                 <select 
+                    name="technique_check" 
+                    value={formData.technique_check} 
+                    onChange={handleChange} 
+                    disabled={formData.is_relative_pickup} // ถ้าญาติรับแทน ให้ล็อคไว้
+                    className="px-3 py-1 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-600 rounded text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
                     <option value="ไม่">❌ ไม่ประเมิน</option>
                     <option value="ทำ">✅ ประเมิน</option>
                  </select>
@@ -279,7 +355,10 @@ export default function RecordVisitPage() {
                     </div>
                  </div>
              ) : (
-                <div className="text-sm text-gray-400 italic pl-6">* เลือก "ประเมิน" เพื่อเปิดแบบฟอร์มตรวจสอบเทคนิค</div>
+                <div className="text-sm text-gray-400 italic pl-6 flex items-center gap-2">
+                    * เลือก "ประเมิน" เพื่อเปิดแบบฟอร์มตรวจสอบเทคนิค
+                    {formData.is_relative_pickup && <span className="text-[#D97736] bg-[#FFF9F0] px-2 py-0.5 rounded text-xs border border-[#D97736]/30">(ล็อคอัตโนมัติเนื่องจากญาติรับแทน)</span>}
+                </div>
              )}
           </div>
 
@@ -292,6 +371,9 @@ export default function RecordVisitPage() {
              <div>
                 <label className="block text-sm font-bold mb-2">บันทึกเพิ่มเติม (Note)</label>
                 <textarea name="note" rows={2} value={formData.note} onChange={handleChange} className="w-full px-4 py-2 bg-white dark:bg-zinc-800 border border-[#3D3834] dark:border-zinc-600 outline-none resize-none dark:text-white" />
+                {formData.is_relative_pickup && (
+                    <p className="text-xs text-[#D97736] mt-1 italic">* ระบบจะเติมข้อความ "(ญาติรับยาแทน)" ต่อท้ายให้โดยอัตโนมัติ</p>
+                )}
              </div>
              <div>
                 <label className="block text-sm font-bold mb-2">วันนัดครั้งถัดไป</label>
